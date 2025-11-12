@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 interface ForwardSearchResult {
@@ -34,6 +34,38 @@ export default function SpotWord() {
   const [loading, setLoading] = useState(false);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Load sidebar state and search history from localStorage on mount
+  useEffect(() => {
+    const savedSidebarState = localStorage.getItem('sidebarCollapsed');
+    if (savedSidebarState !== null) {
+      setSidebarCollapsed(savedSidebarState === 'true');
+    }
+
+    const savedHistory = localStorage.getItem('spotWordSearchHistory');
+    if (savedHistory) {
+      try {
+        const parsed = JSON.parse(savedHistory);
+        if (Array.isArray(parsed)) {
+          setSearchHistory(parsed);
+        }
+      } catch (error) {
+        console.error('Failed to parse search history:', error);
+      }
+    }
+  }, []);
+
+  // Save sidebar state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  // Save search history to localStorage whenever it changes
+  useEffect(() => {
+    if (searchHistory.length > 0) {
+      localStorage.setItem('spotWordSearchHistory', JSON.stringify(searchHistory));
+    }
+  }, [searchHistory]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,6 +119,24 @@ export default function SpotWord() {
     setResult(null);
   };
 
+  const handleDeleteHistoryItem = (index: number) => {
+    setSearchHistory(prev => {
+      const updated = [...prev];
+      updated.splice(index, 1);
+      if (updated.length === 0) {
+        localStorage.removeItem('spotWordSearchHistory');
+      }
+      return updated;
+    });
+  };
+
+  const handleClearHistory = () => {
+    if (confirm('Clear all search history?')) {
+      setSearchHistory([]);
+      localStorage.removeItem('spotWordSearchHistory');
+    }
+  };
+
   const stripHtmlTags = (text: string) => {
     return text.replace(/<[^>]*>/g, '');
   };
@@ -112,6 +162,8 @@ export default function SpotWord() {
           <>
             <Link
               href="/"
+              prefetch={true}
+              scroll={false}
               className="block w-full mb-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-center"
             >
               ← Word Family
@@ -119,16 +171,39 @@ export default function SpotWord() {
 
             {searchHistory.length > 0 && (
               <div>
-                <h2 className="text-xl font-bold text-white mb-4">Search History</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-white">Search History</h2>
+                  <button
+                    onClick={handleClearHistory}
+                    className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                    title="Clear all history"
+                  >
+                    Clear All
+                  </button>
+                </div>
                 <div className="space-y-2">
                   {searchHistory.map((word, index) => (
-                    <button
+                    <div
                       key={index}
-                      onClick={() => handleHistoryClick(word)}
-                      className="w-full text-left px-3 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors text-sm"
+                      className="flex items-center gap-2 bg-gray-700 rounded hover:bg-gray-600 transition-colors"
                     >
-                      {word}
-                    </button>
+                      <button
+                        onClick={() => handleHistoryClick(word)}
+                        className="flex-1 text-left px-3 py-2 text-white text-sm"
+                      >
+                        {word}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteHistoryItem(index);
+                        }}
+                        className="px-3 py-2 text-red-400 hover:text-red-300 transition-colors text-sm"
+                        title="Delete this item"
+                      >
+                        ×
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>

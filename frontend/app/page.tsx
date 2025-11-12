@@ -28,7 +28,7 @@ interface Notification {
 
 export default function Home() {
   const [records, setRecords] = useState<WordRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterColumn, setFilterColumn] = useState('all');
   const [file, setFile] = useState<File | null>(null);
@@ -53,7 +53,32 @@ export default function Home() {
   const [populatingHeadwords, setPopulatingHeadwords] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  // Load sidebar state from localStorage on mount
   useEffect(() => {
+    const savedSidebarState = localStorage.getItem('sidebarCollapsed');
+    if (savedSidebarState !== null) {
+      setSidebarCollapsed(savedSidebarState === 'true');
+    }
+  }, []);
+
+  // Save sidebar state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    // Try to load from sessionStorage first for instant display
+    const cachedRecords = sessionStorage.getItem('wordFamilyRecords');
+    if (cachedRecords) {
+      try {
+        const parsed = JSON.parse(cachedRecords);
+        setRecords(parsed);
+      } catch (error) {
+        console.error('Failed to parse cached records:', error);
+      }
+    }
+
+    // Fetch fresh data in background
     fetchRecords();
   }, []);
 
@@ -69,10 +94,10 @@ export default function Home() {
       const response = await fetch('/api/records');
       const data = await response.json();
       setRecords(data);
+      // Cache the records in sessionStorage
+      sessionStorage.setItem('wordFamilyRecords', JSON.stringify(data));
     } catch (error) {
       console.error('Failed to fetch records:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -368,7 +393,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-900 flex">
       {/* Sidebar */}
-      <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-gray-800 border-r border-gray-700 p-6 overflow-y-auto transition-all duration-300`}>
+      <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-gray-800 border-r border-gray-700 p-6 overflow-y-auto`}>
         <div className="flex items-center justify-between mb-6">
           {!sidebarCollapsed && (
             <h1 className="text-2xl font-bold text-white">应试单词表</h1>
@@ -386,6 +411,8 @@ export default function Home() {
           <>
             <Link
               href="/spot-word"
+              prefetch={true}
+              scroll={false}
               className="block w-full mb-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-center"
             >
               Spot Word →
