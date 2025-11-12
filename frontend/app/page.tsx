@@ -51,6 +51,7 @@ export default function Home() {
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
   const [selectedSection, setSelectedSection] = useState<string>('all');
   const [populatingHeadwords, setPopulatingHeadwords] = useState(false);
+  const [populationProgress, setPopulationProgress] = useState({ current: 0, total: 0 });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Load sidebar state from localStorage on mount
@@ -131,29 +132,58 @@ export default function Home() {
   };
 
   const handlePopulateHeadwords = async () => {
-    if (!confirm('Populate head_word field for all records without headword? This may take a while.')) {
+    if (!confirm('Populate word_family field for all records without word family? This may take a while.')) {
       return;
     }
 
     setPopulatingHeadwords(true);
 
+    // Get initial count of records to process
     try {
+      const countResponse = await fetch('/api/records');
+      const allRecords = await countResponse.json();
+      const recordsWithoutFamily = allRecords.filter((r: WordRecord) => !r.word_family);
+      const totalCount = recordsWithoutFamily.length;
+
+      setPopulationProgress({ current: 0, total: totalCount });
+
+      // Set up polling to update progress
+      const pollInterval = setInterval(async () => {
+        try {
+          const progressResponse = await fetch('/api/records');
+          const currentRecords = await progressResponse.json();
+          const currentWithoutFamily = currentRecords.filter((r: WordRecord) => !r.word_family).length;
+          const processed = totalCount - currentWithoutFamily;
+          setPopulationProgress({ current: processed, total: totalCount });
+        } catch (err) {
+          console.error('Progress polling error:', err);
+        }
+      }, 500); // Poll every 500ms
+
+      // Start population
       const response = await fetch('/api/populate-headwords', {
         method: 'POST',
       });
 
+      // Stop polling
+      clearInterval(pollInterval);
+
       if (response.ok) {
         const data = await response.json();
+        setPopulationProgress({ current: data.updated, total: data.total });
         showNotification('success', `${data.message}`);
         fetchRecords();
       } else {
-        showNotification('error', 'Failed to populate head words');
+        showNotification('error', 'Failed to populate word families');
       }
     } catch (error) {
-      console.error('Populate headwords error:', error);
-      showNotification('error', 'Failed to populate head words');
+      console.error('Populate word families error:', error);
+      showNotification('error', 'Failed to populate word families');
     } finally {
       setPopulatingHeadwords(false);
+      setTimeout(() => {
+        setPopulationProgress({ current: 0, total: 0 });
+      }, 2000); // Keep progress visible for 2 seconds after completion
     }
   };
 
@@ -599,9 +629,23 @@ export default function Home() {
                 type="button"
                 onClick={handlePopulateHeadwords}
                 disabled={populatingHeadwords}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium whitespace-nowrap"
+                className="relative px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:cursor-not-allowed font-medium whitespace-nowrap overflow-hidden"
               >
-                {populatingHeadwords ? 'Processing...' : 'Headword'}
+                {/* Progress Fill Background */}
+                {populatingHeadwords && (
+                  <div
+                    className="absolute inset-0 bg-green-400 transition-all duration-300 ease-out"
+                    style={{
+                      width: `${populationProgress.total > 0 ? (populationProgress.current / populationProgress.total) * 100 : 0}%`
+                    }}
+                  ></div>
+                )}
+                {/* Button Text */}
+                <span className="relative z-10">
+                  {populatingHeadwords
+                    ? `Processing... ${populationProgress.current}/${populationProgress.total}`
+                    : 'Word Family'}
+                </span>
               </button>
             </form>
 

@@ -50,6 +50,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } else if (req.method === 'DELETE') {
       // Delete record
       await query('DELETE FROM word_records WHERE id = ?', [id]);
+
+      // Reset auto increment if table is empty
+      const remainingRecords = await query('SELECT COUNT(*) as count FROM word_records');
+      if (remainingRecords[0].count === 0) {
+        await query('ALTER TABLE word_records AUTO_INCREMENT = 1');
+      }
+
       return res.status(200).json({ message: 'Record deleted successfully' });
     } else {
       res.setHeader('Allow', ['PUT', 'DELETE']);
