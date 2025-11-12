@@ -32,12 +32,22 @@ export default function SpotWord() {
   const [result, setResult] = useState<SearchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!searchWord.trim()) {
+    const trimmedWord = searchWord.trim();
+
+    if (!trimmedWord) {
       setError('Please enter a word');
+      return;
+    }
+
+    // Validate that input contains only letters (allow hyphens for compound words)
+    if (!/^[a-zA-Z-]+$/.test(trimmedWord)) {
+      setError('Please input a word');
       return;
     }
 
@@ -47,12 +57,18 @@ export default function SpotWord() {
 
     try {
       const response = await fetch(
-        `/api/vocabulary/search?word=${encodeURIComponent(searchWord.trim())}&type=${searchType}`
+        `/api/vocabulary/search?word=${encodeURIComponent(trimmedWord)}&type=${searchType}`
       );
 
       if (response.ok) {
         const data = await response.json();
         setResult(data);
+
+        // Add to search history (avoid duplicates)
+        setSearchHistory(prev => {
+          const filtered = prev.filter(w => w.toLowerCase() !== trimmedWord.toLowerCase());
+          return [trimmedWord, ...filtered].slice(0, 20); // Keep last 20 searches
+        });
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Search failed');
@@ -65,23 +81,69 @@ export default function SpotWord() {
     }
   };
 
+  const handleHistoryClick = (word: string) => {
+    setSearchWord(word);
+    setError(null);
+    setResult(null);
+  };
+
   const stripHtmlTags = (text: string) => {
     return text.replace(/<[^>]*>/g, '');
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-white">Spot Word</h1>
-          <Link
-            href="/"
-            className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+    <div className="min-h-screen bg-gray-900 flex">
+      {/* Sidebar */}
+      <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-gray-800 border-r border-gray-700 p-6 overflow-y-auto transition-all duration-300 flex-shrink-0`}>
+        <div className="flex items-center justify-between mb-6">
+          {!sidebarCollapsed && (
+            <h1 className="text-2xl font-bold text-white">应试单词表</h1>
+          )}
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="text-gray-400 hover:text-white transition-colors"
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            ← Back to Word Family
-          </Link>
+            {sidebarCollapsed ? '→' : '←'}
+          </button>
         </div>
+
+        {!sidebarCollapsed && (
+          <>
+            <Link
+              href="/"
+              className="block w-full mb-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-center"
+            >
+              ← Word Family
+            </Link>
+
+            {searchHistory.length > 0 && (
+              <div>
+                <h2 className="text-xl font-bold text-white mb-4">Search History</h2>
+                <div className="space-y-2">
+                  {searchHistory.map((word, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleHistoryClick(word)}
+                      className="w-full text-left px-3 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors text-sm"
+                    >
+                      {word}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 p-8 overflow-y-auto">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-white">Spot Word</h1>
+          </div>
 
         {/* Search Form */}
         <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-700">
@@ -120,36 +182,35 @@ export default function SpotWord() {
               </div>
             </div>
 
-            <div className="flex gap-4">
-              <input
-                type="text"
-                value={searchWord}
-                onChange={(e) => setSearchWord(e.target.value)}
-                placeholder={
-                  searchType === 'forward'
-                    ? 'Enter headword (e.g., adapt)'
-                    : 'Enter derivative (e.g., adapting)'
-                }
-                className="flex-1 px-4 py-3 border border-gray-600 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
-              >
-                {loading ? 'Searching...' : 'Search'}
-              </button>
+            <div>
+              <div className="flex gap-4">
+                <input
+                  type="text"
+                  value={searchWord}
+                  onChange={(e) => setSearchWord(e.target.value)}
+                  placeholder={
+                    searchType === 'forward'
+                      ? 'Enter headword (e.g., adapt)'
+                      : 'Enter derivative (e.g., adapting)'
+                  }
+                  className="flex-1 px-4 py-3 border border-gray-600 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
+                >
+                  {loading ? 'Searching...' : 'Search'}
+                </button>
+              </div>
+
+              {/* Error Message - shown below input */}
+              {error && (
+                <p className="text-red-400 text-sm mt-2">{error}</p>
+              )}
             </div>
           </form>
         </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-600 border border-red-500 text-white px-6 py-4 rounded-lg mb-6">
-            <p className="font-semibold">Error</p>
-            <p className="text-sm mt-1">{error}</p>
-          </div>
-        )}
 
         {/* Results */}
         {result && (
@@ -300,6 +361,7 @@ export default function SpotWord() {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

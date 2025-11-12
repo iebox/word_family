@@ -53,31 +53,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     } else if (type === 'reverse') {
       // Search: derivative -> headword
-      // Handle various spacing patterns around pipes: "word|", " word |", " word|", "|word"
+      // Use REGEXP for exact whole word matching
+      // Match only when word is:
+      // - At start or after pipe: (^|\\|)\\s*
+      // - Followed by pipe or at end: \\s*(\\||$)
+      // This ensures "in" doesn't match "in tray" or "ins"
+      const escapedWord = searchWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern = `(^|\\|)\\s*${escapedWord}\\s*(\\||$)`;
+
       const records = await query<VocabularyRecord>(
         `SELECT id, headword, derivative, definition, pronunciation, partofspeech
          FROM vocabulary
          WHERE derivative IS NOT NULL
-         AND (
-           LOWER(TRIM(derivative)) = ?
-           OR LOWER(derivative) LIKE ?
-           OR LOWER(derivative) LIKE ?
-           OR LOWER(derivative) LIKE ?
-           OR LOWER(derivative) LIKE ?
-           OR LOWER(derivative) LIKE ?
-           OR LOWER(derivative) LIKE ?
-           OR LOWER(derivative) LIKE ?
-         )`,
-        [
-          searchWord,
-          `${searchWord} |%`,       // "helps |"
-          `% ${searchWord} |%`,     // " helps |"
-          `%| ${searchWord}%`,      // "| helps"
-          `%|${searchWord}%`,       // "|helps"
-          `% ${searchWord}`,        // ends with " helps"
-          `%| ${searchWord}`,       // ends with "| helps"
-          `%|${searchWord}`         // ends with "|helps"
-        ]
+         AND LOWER(derivative) REGEXP ?`,
+        [pattern]
       );
 
       if (records.length === 0) {

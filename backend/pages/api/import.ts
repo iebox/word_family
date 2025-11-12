@@ -5,6 +5,11 @@ import { query } from '@/lib/db';
 import fs from 'fs';
 import path from 'path';
 
+interface VocabularyRecord {
+  headword: string;
+  derivative: string | null;
+}
+
 export const config = {
   api: {
     bodyParser: false,
@@ -164,8 +169,12 @@ function splitSentenceIntoWords(sentence: string): string[] {
     .map(word => word.trim())
     .filter(word => word.length > 0);
 
+  // Filter out non-words (must contain at least one letter)
+  // This excludes things like "_____", "123", "___", etc.
+  const validWords = words.filter(word => /[a-zA-Z]/.test(word));
+
   // Convert to lowercase except for proper nouns/names
-  const result = words.map((word, index) => {
+  const result = validWords.map((word, index) => {
     if (isProperNoun(word, index)) {
       return word; // Keep original case for proper nouns
     }
@@ -173,6 +182,98 @@ function splitSentenceIntoWords(sentence: string): string[] {
   });
 
   return result;
+}
+
+async function getWordFamily(word: string): Promise<string | null> {
+  /**
+   * Find the word family for a given word.
+   * Returns the headword + all derivatives separated by ' | '
+   */
+  const wordLower = word.toLowerCase().trim();
+
+  // Try forward search: check if word is a headword
+  const forwardResults = await query<VocabularyRecord>(
+    'SELECT headword, derivative FROM vocabulary WHERE LOWER(headword) = ?',
+    [wordLower]
+  );
+
+  // Try reverse search: check if word is a derivative
+  // Use REGEXP for exact whole word matching
+  // Match only when word is at start/after pipe and followed by pipe/end
+  const escapedWord = wordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = `(^|\\|)\\s*${escapedWord}\\s*(\\||$)`;
+
+  const reverseResults = await query<VocabularyRecord>(
+    `SELECT headword, derivative FROM vocabulary
+     WHERE derivative IS NOT NULL
+     AND LOWER(derivative) REGEXP ?
+     LIMIT 1`,
+    [pattern]
+  );
+
+  // Count derivatives for each result
+  const countDerivatives = (result: VocabularyRecord | undefined) => {
+    if (!result || !result.derivative) return 0;
+    return result.derivative.split('|').map(d => d.trim()).filter(d => d.length > 0).length;
+  };
+
+  const forwardResult = forwardResults[0];
+  const reverseResult = reverseResults[0];
+  const forwardCount = countDerivatives(forwardResult);
+  const reverseCount = countDerivatives(reverseResult);
+
+  // Prefer reverse search result if it has more derivatives
+  let result: VocabularyRecord | undefined;
+  if (reverseResult && reverseCount >= forwardCount) {
+    result = reverseResult;
+  } else if (forwardResult) {
+    result = forwardResult;
+  }
+
+  if (!result) {
+    return null;
+  }
+
+  const headword = result.headword;
+  const derivative = result.derivative;
+
+  if (derivative && derivative.trim()) {
+    const derivatives = derivative.split('|').map(d => d.trim()).filter(d => d.length > 0);
+    return ` ${headword} | ${derivatives.join(' | ')} `;
+  } else {
+    return ` ${headword} `;
+  }
+}
+
+async function populateHeadWords(insertedRecordIds: number[]): Promise<number> {
+  /**
+   * Populate head_word field for newly inserted records
+   * Returns count of updated records
+   */
+  let updatedCount = 0;
+
+  for (const recordId of insertedRecordIds) {
+    // Get the word for this record
+    const records = await query<{ word: string }>(
+      'SELECT word FROM word_records WHERE id = ?',
+      [recordId]
+    );
+
+    if (records.length === 0) continue;
+
+    const word = records[0].word;
+    const wordFamily = await getWordFamily(word);
+
+    if (wordFamily) {
+      await query(
+        'UPDATE word_records SET head_word = ? WHERE id = ?',
+        [wordFamily, recordId]
+      );
+      updatedCount++;
+    }
+  }
+
+  return updatedCount;
 }
 
 export default async function handler(
@@ -244,6 +345,7 @@ export default async function handler(
     }
 
     console.log('Total records inserted:', insertedRecords.length);
+
     fs.unlinkSync(filePath);
 
     res.status(200).json({

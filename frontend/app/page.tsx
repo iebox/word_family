@@ -50,6 +50,8 @@ export default function Home() {
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
   const [selectedSection, setSelectedSection] = useState<string>('all');
+  const [populatingHeadwords, setPopulatingHeadwords] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     fetchRecords();
@@ -100,6 +102,33 @@ export default function Home() {
       showNotification('error', 'Failed to upload file');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handlePopulateHeadwords = async () => {
+    if (!confirm('Populate head_word field for all records without headword? This may take a while.')) {
+      return;
+    }
+
+    setPopulatingHeadwords(true);
+
+    try {
+      const response = await fetch('/api/populate-headwords', {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        showNotification('success', `${data.message}`);
+        fetchRecords();
+      } else {
+        showNotification('error', 'Failed to populate head words');
+      }
+    } catch (error) {
+      console.error('Populate headwords error:', error);
+      showNotification('error', 'Failed to populate head words');
+    } finally {
+      setPopulatingHeadwords(false);
     }
   };
 
@@ -339,8 +368,30 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-900 flex">
       {/* Sidebar */}
-      <div className="w-64 bg-gray-800 border-r border-gray-700 p-6 overflow-y-auto">
-        <h2 className="text-xl font-bold text-white mb-6">Filters</h2>
+      <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-gray-800 border-r border-gray-700 p-6 overflow-y-auto transition-all duration-300`}>
+        <div className="flex items-center justify-between mb-6">
+          {!sidebarCollapsed && (
+            <h1 className="text-2xl font-bold text-white">应试单词表</h1>
+          )}
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="text-gray-400 hover:text-white transition-colors"
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? '→' : '←'}
+          </button>
+        </div>
+
+        {!sidebarCollapsed && (
+          <>
+            <Link
+              href="/spot-word"
+              className="block w-full mb-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-center"
+            >
+              Spot Word →
+            </Link>
+
+            <h2 className="text-xl font-bold text-white mb-6">Filters</h2>
 
         {/* Unit Filter */}
         <div className="mb-6">
@@ -422,6 +473,8 @@ export default function Home() {
             Clear Filters
           </button>
         )}
+          </>
+        )}
       </div>
 
       {/* Main Content */}
@@ -494,16 +547,6 @@ export default function Home() {
           </div>
         )}
 
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-white">应单词表</h1>
-          <Link
-            href="/spot-word"
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            Spot Word →
-          </Link>
-        </div>
-
         {/* Combined Import and Search Section */}
         <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-700">
           <div className="flex gap-6 items-end">
@@ -524,6 +567,14 @@ export default function Home() {
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium whitespace-nowrap"
               >
                 {uploading ? 'Uploading...' : 'Upload'}
+              </button>
+              <button
+                type="button"
+                onClick={handlePopulateHeadwords}
+                disabled={populatingHeadwords}
+                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium whitespace-nowrap"
+              >
+                {populatingHeadwords ? 'Processing...' : 'Headword'}
               </button>
             </form>
 
