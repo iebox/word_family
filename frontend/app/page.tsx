@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 interface WordRecord {
   id: number;
@@ -493,7 +494,15 @@ export default function Home() {
           </div>
         )}
 
-        <h1 className="text-3xl font-bold mb-6 text-white">应单词表</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold text-white">应单词表</h1>
+          <Link
+            href="/spot-word"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            Spot Word →
+          </Link>
+        </div>
 
         {/* Combined Import and Search Section */}
         <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-700">
