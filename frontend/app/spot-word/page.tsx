@@ -167,21 +167,14 @@ export default function SpotWord() {
                 </h2>
 
                 {result.partofspeech && (
-                  <div className="mb-4">
+                  <div className="mb-6">
                     <span className="px-3 py-1 bg-purple-600 text-white text-sm rounded">
                       {result.partofspeech}
                     </span>
                   </div>
                 )}
 
-                {result.definition && (
-                  <div className="mb-6 text-gray-300">
-                    <p className="text-sm font-semibold text-gray-400 mb-2">Definition:</p>
-                    <p>{stripHtmlTags(result.definition)}</p>
-                  </div>
-                )}
-
-                <div className="mt-6">
+                <div className="mb-6">
                   <h3 className="text-lg font-semibold text-white mb-3">
                     Derivatives ({result.derivatives.length})
                   </h3>
@@ -200,6 +193,23 @@ export default function SpotWord() {
                     <p className="text-gray-400 italic">No derivatives found</p>
                   )}
                 </div>
+
+                {result.definition && (
+                  <div className="text-gray-300">
+                    <p className="text-sm font-semibold text-gray-400 mb-3">Definition:</p>
+                    <ul className="list-disc list-inside space-y-2">
+                      {result.definition.split('|').map((def, index) => {
+                        const cleanDef = stripHtmlTags(def.trim());
+                        if (!cleanDef) return null;
+                        return (
+                          <li key={index} className="text-gray-300 leading-relaxed">
+                            {cleanDef}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
               </div>
             ) : (
               // Reverse Search Results
