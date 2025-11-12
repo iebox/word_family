@@ -15,6 +15,9 @@ interface WordRecord {
   chinese_translation?: string;
 }
 
+type SortColumn = keyof WordRecord | null;
+type SortDirection = 'asc' | 'desc' | null;
+
 export default function Home() {
   const [records, setRecords] = useState<WordRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,6 +25,8 @@ export default function Home() {
   const [filterColumn, setFilterColumn] = useState('all');
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [sortColumn, setSortColumn] = useState<SortColumn>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
   useEffect(() => {
     fetchRecords();
@@ -68,19 +73,55 @@ export default function Home() {
     }
   };
 
-  const filteredRecords = records.filter(record => {
-    if (!searchTerm) return true;
-
-    if (filterColumn === 'all') {
-      return Object.values(record).some(value =>
-        String(value).toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  const handleSort = (column: keyof WordRecord) => {
+    if (sortColumn === column) {
+      // Toggle direction or clear sort
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortColumn(null);
+        setSortDirection(null);
+      }
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
     }
+  };
 
-    return String(record[filterColumn as keyof WordRecord] || '')
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
-  });
+  const getSortIcon = (column: keyof WordRecord) => {
+    if (sortColumn !== column) {
+      return '⇅';
+    }
+    return sortDirection === 'asc' ? '↑' : '↓';
+  };
+
+  const filteredRecords = records
+    .filter(record => {
+      if (!searchTerm) return true;
+
+      if (filterColumn === 'all') {
+        return Object.values(record).some(value =>
+          String(value).toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      }
+
+      return String(record[filterColumn as keyof WordRecord] || '')
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+    })
+    .sort((a, b) => {
+      if (!sortColumn || !sortDirection) return 0;
+
+      const aValue = String(a[sortColumn] || '');
+      const bValue = String(b[sortColumn] || '');
+
+      const comparison = aValue.localeCompare(bValue, undefined, {
+        numeric: true,
+        sensitivity: 'base'
+      });
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
 
   if (loading) {
     return (
@@ -149,27 +190,85 @@ export default function Home() {
             <table className="w-full">
               <thead className="bg-gray-700 border-b border-gray-600">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Word</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Sentence</th>
+                  <th className="px-4 py-3 text-left">
+                    <button
+                      onClick={() => handleSort('id')}
+                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
+                    >
+                      ID <span className="text-gray-400">{getSortIcon('id')}</span>
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-left">
+                    <button
+                      onClick={() => handleSort('word')}
+                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
+                    >
+                      Word <span className="text-gray-400">{getSortIcon('word')}</span>
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-left">
+                    <button
+                      onClick={() => handleSort('sentence')}
+                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
+                    >
+                      Sentence <span className="text-gray-400">{getSortIcon('sentence')}</span>
+                    </button>
+                  </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Prep Vocab</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Recording</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Section</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Test Point</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Collocation</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Head Word</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Chinese</th>
+                  <th className="px-4 py-3 text-left">
+                    <button
+                      onClick={() => handleSort('section')}
+                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
+                    >
+                      Section <span className="text-gray-400">{getSortIcon('section')}</span>
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-left">
+                    <button
+                      onClick={() => handleSort('test_point')}
+                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
+                    >
+                      Test Point <span className="text-gray-400">{getSortIcon('test_point')}</span>
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-left">
+                    <button
+                      onClick={() => handleSort('collocation')}
+                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
+                    >
+                      Collocation <span className="text-gray-400">{getSortIcon('collocation')}</span>
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-left">
+                    <button
+                      onClick={() => handleSort('head_word')}
+                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
+                    >
+                      Head Word <span className="text-gray-400">{getSortIcon('head_word')}</span>
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-left">
+                    <button
+                      onClick={() => handleSort('chinese_translation')}
+                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
+                    >
+                      Chinese <span className="text-gray-400">{getSortIcon('chinese_translation')}</span>
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filteredRecords.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={10} className="px-4 py-8 text-center text-gray-400">
                       No records found. Upload an Excel file to get started.
                     </td>
                   </tr>
                 ) : (
                   filteredRecords.map((record) => (
                     <tr key={record.id} className="border-b border-gray-700 hover:bg-gray-750 transition-colors">
+                      <td className="px-4 py-3 text-gray-400 text-sm">{record.id}</td>
                       <td className="px-4 py-3 text-white font-medium">{record.word}</td>
                       <td className="px-4 py-3 max-w-md text-gray-300">{record.sentence}</td>
                       <td className="px-4 py-3">

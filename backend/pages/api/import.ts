@@ -37,11 +37,142 @@ function parseForm(req: NextApiRequest): Promise<{ fields: any; files: any }> {
   });
 }
 
+function expandContractions(text: string): string {
+  // First normalize apostrophes (handle smart quotes and other variants)
+  // U+2018 = ' (left single quotation mark)
+  // U+2019 = ' (right single quotation mark)
+  // U+201C = " (left double quotation mark)
+  // U+201D = " (right double quotation mark)
+  let normalized = text
+    .replace(/[\u2018\u2019]/g, "'")  // Replace smart single quotes with straight apostrophe
+    .replace(/[\u201C\u201D]/g, '"'); // Replace smart double quotes
+
+  const contractions: Record<string, string> = {
+    "I'm": "I am",
+    "I've": "I have",
+    "I'll": "I will",
+    "I'd": "I would",
+    "you're": "you are",
+    "you've": "you have",
+    "you'll": "you will",
+    "you'd": "you would",
+    "he's": "he is",
+    "he'll": "he will",
+    "he'd": "he would",
+    "she's": "she is",
+    "she'll": "she will",
+    "she'd": "she would",
+    "it's": "it is",
+    "it'll": "it will",
+    "it'd": "it would",
+    "we're": "we are",
+    "we've": "we have",
+    "we'll": "we will",
+    "we'd": "we would",
+    "they're": "they are",
+    "they've": "they have",
+    "they'll": "they will",
+    "they'd": "they would",
+    "that's": "that is",
+    "that'll": "that will",
+    "that'd": "that would",
+    "who's": "who is",
+    "who'll": "who will",
+    "who'd": "who would",
+    "what's": "what is",
+    "what'll": "what will",
+    "what'd": "what would",
+    "where's": "where is",
+    "where'll": "where will",
+    "where'd": "where would",
+    "when's": "when is",
+    "when'll": "when will",
+    "when'd": "when would",
+    "why's": "why is",
+    "why'll": "why will",
+    "why'd": "why would",
+    "how's": "how is",
+    "how'll": "how will",
+    "how'd": "how would",
+    "can't": "cannot",
+    "won't": "will not",
+    "don't": "do not",
+    "doesn't": "does not",
+    "didn't": "did not",
+    "isn't": "is not",
+    "aren't": "are not",
+    "wasn't": "was not",
+    "weren't": "were not",
+    "hasn't": "has not",
+    "haven't": "have not",
+    "hadn't": "had not",
+    "shouldn't": "should not",
+    "wouldn't": "would not",
+    "couldn't": "could not",
+    "mightn't": "might not",
+    "mustn't": "must not",
+    "needn't": "need not",
+    "shan't": "shall not",
+    "let's": "let us",
+    "there's": "there is",
+    "here's": "here is"
+  };
+
+  let result = normalized;
+
+  // Replace contractions (case-insensitive)
+  for (const [contraction, expansion] of Object.entries(contractions)) {
+    // Escape special regex characters
+    const escapedContraction = contraction.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\b${escapedContraction}\\b`, 'gi');
+    result = result.replace(regex, (match) => {
+      // Preserve the original case pattern
+      if (match[0] === match[0].toUpperCase()) {
+        return expansion.charAt(0).toUpperCase() + expansion.slice(1);
+      }
+      return expansion;
+    });
+  }
+
+  return result;
+}
+
+function isProperNoun(word: string, position: number): boolean {
+  // If word starts with uppercase and it's not the first word, likely a proper noun
+  // Also check for common abbreviations (all caps, 2-3 letters)
+  if (word.length >= 2 && word === word.toUpperCase()) {
+    return true; // Abbreviations like PE, USA, etc.
+  }
+
+  if (position > 0 && word[0] === word[0].toUpperCase()) {
+    return true; // Capitalized word not at start = proper noun
+  }
+
+  return false;
+}
+
 function splitSentenceIntoWords(sentence: string): string[] {
-  return sentence
+  // First expand contractions (BEFORE removing punctuation)
+  const expanded = expandContractions(sentence);
+
+  // Remove punctuation but keep spaces and letters
+  const cleanText = expanded.replace(/[^\w\s]/g, ' ');
+
+  // Split into words
+  const words = cleanText
     .split(/\s+/)
     .map(word => word.trim())
     .filter(word => word.length > 0);
+
+  // Convert to lowercase except for proper nouns/names
+  const result = words.map((word, index) => {
+    if (isProperNoun(word, index)) {
+      return word; // Keep original case for proper nouns
+    }
+    return word.toLowerCase();
+  });
+
+  return result;
 }
 
 export default async function handler(
