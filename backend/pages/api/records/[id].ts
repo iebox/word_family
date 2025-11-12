@@ -13,35 +13,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Update record
       const {
         word,
-        sentence,
+        reference,
         unit,
         section,
         test_point,
         collocation,
-        head_word,
-        chinese_translation
+        word_family,
+        book
       } = req.body;
 
       await query(
         `UPDATE word_records
          SET word = ?,
-             sentence = ?,
+             reference = ?,
              unit = ?,
              section = ?,
              test_point = ?,
              collocation = ?,
-             head_word = ?,
-             chinese_translation = ?
+             word_family = ?,
+             book = ?
          WHERE id = ?`,
         [
           word,
-          sentence,
+          reference,
           unit || null,
           section || null,
           test_point || null,
           collocation || null,
-          head_word || null,
-          chinese_translation || null,
+          word_family || null,
+          book || null,
           id
         ]
       );

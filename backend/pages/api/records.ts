@@ -4,13 +4,13 @@ import { query } from '@/lib/db';
 interface WordRecord {
   id: number;
   word: string;
-  sentence: string;
+  reference: string;
   unit?: string;
   section?: string;
   test_point?: string;
   collocation?: string;
-  head_word?: string;
-  chinese_translation?: string;
+  word_family?: string;
+  book?: string;
 }
 
 export default async function handler(

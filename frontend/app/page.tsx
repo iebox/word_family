@@ -6,13 +6,13 @@ import Link from 'next/link';
 interface WordRecord {
   id: number;
   word: string;
-  sentence: string;
+  reference: string;
   unit?: string;
   section?: string;
   test_point?: string;
   collocation?: string;
-  head_word?: string;
-  chinese_translation?: string;
+  word_family?: string;
+  book?: string;
 }
 
 type SortColumn = keyof WordRecord | null;
@@ -626,11 +626,11 @@ export default function Home() {
                 >
                   <option value="all">All Columns</option>
                   <option value="word">Word</option>
-                  <option value="sentence">Sentence</option>
+                  <option value="reference">Reference</option>
                   <option value="section">Section</option>
                   <option value="test_point">Test Point</option>
                   <option value="collocation">Collocation</option>
-                  <option value="head_word">Head Word</option>
+                  <option value="word_family">Word Family</option>
                 </select>
               </div>
             </div>
@@ -686,10 +686,10 @@ export default function Home() {
                   </th>
                   <th className="px-4 py-3 text-left">
                     <button
-                      onClick={() => handleSort('sentence')}
+                      onClick={() => handleSort('reference')}
                       className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
                     >
-                      Sentence <span className="text-gray-400">{getSortIcon('sentence')}</span>
+                      Reference <span className="text-gray-400">{getSortIcon('reference')}</span>
                     </button>
                   </th>
                   <th className="px-4 py-3 text-left">
@@ -726,18 +726,18 @@ export default function Home() {
                   </th>
                   <th className="px-4 py-3 text-left">
                     <button
-                      onClick={() => handleSort('head_word')}
+                      onClick={() => handleSort('word_family')}
                       className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
                     >
-                      Head Word <span className="text-gray-400">{getSortIcon('head_word')}</span>
+                      Word Family <span className="text-gray-400">{getSortIcon('word_family')}</span>
                     </button>
                   </th>
                   <th className="px-4 py-3 text-left">
                     <button
-                      onClick={() => handleSort('chinese_translation')}
+                      onClick={() => handleSort('book')}
                       className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
                     >
-                      Chinese <span className="text-gray-400">{getSortIcon('chinese_translation')}</span>
+                      Book <span className="text-gray-400">{getSortIcon('book')}</span>
                     </button>
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Actions</th>
@@ -780,14 +780,14 @@ export default function Home() {
                         <td className="px-4 py-3 max-w-md">
                           {isEditing ? (
                             <textarea
-                              value={editedData.sentence || ''}
-                              onChange={(e) => handleFieldChange('sentence', e.target.value)}
+                              value={editedData.reference || ''}
+                              onChange={(e) => handleFieldChange('reference', e.target.value)}
                               className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                               rows={2}
                             />
                           ) : (
                             <span className="text-gray-300">
-                              {highlightWord(record.sentence, record.word)}
+                              {highlightWord(record.reference, record.word)}
                             </span>
                           )}
                         </td>
@@ -845,24 +845,24 @@ export default function Home() {
                           {isEditing ? (
                             <input
                               type="text"
-                              value={editedData.head_word || ''}
-                              onChange={(e) => handleFieldChange('head_word', e.target.value)}
+                              value={editedData.word_family || ''}
+                              onChange={(e) => handleFieldChange('word_family', e.target.value)}
                               className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                           ) : (
-                            <span className="text-gray-300">{record.head_word || '-'}</span>
+                            <span className="text-gray-300">{record.word_family || '-'}</span>
                           )}
                         </td>
                         <td className="px-4 py-3">
                           {isEditing ? (
                             <input
                               type="text"
-                              value={editedData.chinese_translation || ''}
-                              onChange={(e) => handleFieldChange('chinese_translation', e.target.value)}
+                              value={editedData.book || ''}
+                              onChange={(e) => handleFieldChange('book', e.target.value)}
                               className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                           ) : (
-                            <span className="text-gray-300">{record.chinese_translation || '-'}</span>
+                            <span className="text-gray-300">{record.book || '-'}</span>
                           )}
                         </td>
                         <td className="px-4 py-3">

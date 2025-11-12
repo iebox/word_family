@@ -76,12 +76,12 @@ export default async function handler(
   }
 
   try {
-    // Get all records without head_word populated
+    // Get all records without word_family populated
     const records = await query<{ id: number; word: string }>(
-      'SELECT id, word FROM word_records WHERE head_word IS NULL'
+      'SELECT id, word FROM word_records WHERE word_family IS NULL'
     );
 
-    console.log(`Starting head_word population for ${records.length} records...`);
+    console.log(`Starting word_family population for ${records.length} records...`);
 
     let updatedCount = 0;
     let notFoundCount = 0;
@@ -91,7 +91,7 @@ export default async function handler(
 
       if (wordFamily) {
         await query(
-          'UPDATE word_records SET head_word = ? WHERE id = ?',
+          'UPDATE word_records SET word_family = ? WHERE id = ?',
           [wordFamily, record.id]
         );
         updatedCount++;
@@ -105,11 +105,11 @@ export default async function handler(
       }
     }
 
-    console.log(`Head word population complete: ${updatedCount} updated, ${notFoundCount} not found`);
+    console.log(`Word family population complete: ${updatedCount} updated, ${notFoundCount} not found`);
 
     return res.status(200).json({
       success: true,
-      message: `Populated ${updatedCount} head words (${notFoundCount} not found)`,
+      message: `Populated ${updatedCount} word families (${notFoundCount} not found)`,
       updated: updatedCount,
       notFound: notFoundCount,
       total: records.length

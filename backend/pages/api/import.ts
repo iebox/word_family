@@ -156,9 +156,9 @@ function isProperNoun(word: string, position: number): boolean {
   return false;
 }
 
-function splitSentenceIntoWords(sentence: string): string[] {
+function splitReferenceIntoWords(reference: string): string[] {
   // First expand contractions (BEFORE removing punctuation)
-  const expanded = expandContractions(sentence);
+  const expanded = expandContractions(reference);
 
   // Remove punctuation but keep spaces and letters
   const cleanText = expanded.replace(/[^\w\s]/g, ' ');
@@ -245,9 +245,9 @@ async function getWordFamily(word: string): Promise<string | null> {
   }
 }
 
-async function populateHeadWords(insertedRecordIds: number[]): Promise<number> {
+async function populateWordFamilies(insertedRecordIds: number[]): Promise<number> {
   /**
-   * Populate head_word field for newly inserted records
+   * Populate word_family field for newly inserted records
    * Returns count of updated records
    */
   let updatedCount = 0;
@@ -266,7 +266,7 @@ async function populateHeadWords(insertedRecordIds: number[]): Promise<number> {
 
     if (wordFamily) {
       await query(
-        'UPDATE word_records SET head_word = ? WHERE id = ?',
+        'UPDATE word_records SET word_family = ? WHERE id = ?',
         [wordFamily, recordId]
       );
       updatedCount++;
@@ -309,35 +309,35 @@ export default async function handler(
     const insertedRecords: any[] = [];
 
     for (const row of data) {
-      // Support multiple column names for sentences
-      const sentence = row['Reference'] || row['reference'] || row['Sentence'] || row['sentence'] || '';
+      // Support multiple column names for reference
+      const reference = row['Reference'] || row['reference'] || row['Sentence'] || row['sentence'] || '';
 
-      if (!sentence) {
-        console.log('Skipping row with no sentence:', row);
+      if (!reference) {
+        console.log('Skipping row with no reference:', row);
         continue;
       }
 
-      const words = splitSentenceIntoWords(sentence);
-      console.log(`Processing sentence "${sentence}" -> ${words.length} words`);
+      const words = splitReferenceIntoWords(reference);
+      console.log(`Processing reference "${reference}" -> ${words.length} words`);
 
       for (const word of words) {
         try {
           await query(
             `INSERT INTO word_records
-            (word, sentence, unit, section, test_point, collocation, head_word, chinese_translation)
+            (word, reference, unit, section, test_point, collocation, word_family, book)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               word,
-              sentence,
+              reference,
               row['Unit'] || row['unit'] || null,
               row['Section'] || row['section'] || null,
               row['test_point'] || null,
               row['collocation'] || null,
               null,
-              row['Chinese'] || row['chinese'] || null
+              row['Book'] || row['book'] || null
             ]
           );
-          insertedRecords.push({ word, sentence });
+          insertedRecords.push({ word, reference });
         } catch (error) {
           console.error('Error inserting record:', error);
         }
