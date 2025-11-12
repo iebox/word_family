@@ -250,6 +250,33 @@ export default function Home() {
     setEditedData(prev => ({ ...prev, [field]: value }));
   };
 
+  const highlightWord = (sentence: string, targetWord: string) => {
+    // Split sentence while preserving spaces and punctuation
+    const words = sentence.split(/(\s+)/);
+
+    return (
+      <span>
+        {words.map((word, index) => {
+          // Remove punctuation for comparison
+          const cleanWord = word.replace(/[^\w]/g, '').toLowerCase();
+          const cleanTarget = targetWord.toLowerCase();
+
+          if (cleanWord === cleanTarget) {
+            return (
+              <span
+                key={index}
+                className="bg-yellow-500 text-gray-900 px-1 rounded font-semibold"
+              >
+                {word}
+              </span>
+            );
+          }
+          return <span key={index}>{word}</span>;
+        })}
+      </span>
+    );
+  };
+
   // Get unique units and sections
   const uniqueUnits = Array.from(new Set(records.map(r => r.unit).filter(Boolean))).sort();
   const uniqueSections = Array.from(new Set(records.map(r => r.section).filter(Boolean))).sort();
@@ -672,7 +699,9 @@ export default function Home() {
                               rows={2}
                             />
                           ) : (
-                            <span className="text-gray-300">{record.sentence}</span>
+                            <span className="text-gray-300">
+                              {highlightWord(record.sentence, record.word)}
+                            </span>
                           )}
                         </td>
                         <td className="px-4 py-3">
