@@ -53,17 +53,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     } else if (type === 'reverse') {
       // Search: derivative -> headword
+      // Handle various spacing patterns around pipes: "word|", " word |", " word|", "|word"
       const records = await query<VocabularyRecord>(
         `SELECT id, headword, derivative, definition, pronunciation, partofspeech
          FROM vocabulary
          WHERE derivative IS NOT NULL
          AND (
-           LOWER(derivative) = ?
+           LOWER(TRIM(derivative)) = ?
+           OR LOWER(derivative) LIKE ?
+           OR LOWER(derivative) LIKE ?
+           OR LOWER(derivative) LIKE ?
+           OR LOWER(derivative) LIKE ?
            OR LOWER(derivative) LIKE ?
            OR LOWER(derivative) LIKE ?
            OR LOWER(derivative) LIKE ?
          )`,
-        [searchWord, `${searchWord} |%`, `%| ${searchWord} |%`, `%| ${searchWord}`]
+        [
+          searchWord,
+          `${searchWord} |%`,       // "helps |"
+          `% ${searchWord} |%`,     // " helps |"
+          `%| ${searchWord}%`,      // "| helps"
+          `%|${searchWord}%`,       // "|helps"
+          `% ${searchWord}`,        // ends with " helps"
+          `%| ${searchWord}`,       // ends with "| helps"
+          `%|${searchWord}`         // ends with "|helps"
+        ]
       );
 
       if (records.length === 0) {
