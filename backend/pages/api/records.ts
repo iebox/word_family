@@ -5,8 +5,7 @@ interface WordRecord {
   id: number;
   word: string;
   sentence: string;
-  prep_vocab?: string;
-  recording?: string;
+  unit?: string;
   section?: string;
   test_point?: string;
   collocation?: string;

@@ -14,8 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const {
         word,
         sentence,
-        prep_vocab,
-        recording,
+        unit,
         section,
         test_point,
         collocation,
@@ -27,8 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         `UPDATE word_records
          SET word = ?,
              sentence = ?,
-             prep_vocab = ?,
-             recording = ?,
+             unit = ?,
              section = ?,
              test_point = ?,
              collocation = ?,
@@ -38,8 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         [
           word,
           sentence,
-          prep_vocab || null,
-          recording || null,
+          unit || null,
           section || null,
           test_point || null,
           collocation || null,

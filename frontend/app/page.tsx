@@ -6,8 +6,7 @@ interface WordRecord {
   id: number;
   word: string;
   sentence: string;
-  prep_vocab?: string;
-  recording?: string;
+  unit?: string;
   section?: string;
   test_point?: string;
   collocation?: string;
@@ -46,6 +45,10 @@ export default function Home() {
     show: false,
     id: null
   });
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [selectedUnit, setSelectedUnit] = useState<string>('all');
+  const [selectedSection, setSelectedSection] = useState<string>('all');
 
   useEffect(() => {
     fetchRecords();
@@ -186,12 +189,80 @@ export default function Home() {
     setDeleteConfirm({ show: false, id: null });
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allIds = new Set(filteredRecords.map(record => record.id));
+      setSelectedIds(allIds);
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectOne = (id: number, checked: boolean) => {
+    const newSelected = new Set(selectedIds);
+    if (checked) {
+      newSelected.add(id);
+    } else {
+      newSelected.delete(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleBulkDeleteClick = () => {
+    if (selectedIds.size === 0) {
+      showNotification('warning', 'No records selected');
+      return;
+    }
+    setBulkDeleteConfirm(true);
+  };
+
+  const handleBulkDeleteConfirm = async () => {
+    try {
+      const idsArray = Array.from(selectedIds);
+      const response = await fetch('/api/records/bulk-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: idsArray }),
+      });
+
+      if (response.ok) {
+        await fetchRecords();
+        setSelectedIds(new Set());
+        showNotification('success', `Successfully deleted ${idsArray.length} record(s)`);
+      } else {
+        showNotification('error', 'Failed to delete records');
+      }
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      showNotification('error', 'Failed to delete records');
+    } finally {
+      setBulkDeleteConfirm(false);
+    }
+  };
+
+  const handleBulkDeleteCancel = () => {
+    setBulkDeleteConfirm(false);
+  };
+
   const handleFieldChange = (field: keyof WordRecord, value: string) => {
     setEditedData(prev => ({ ...prev, [field]: value }));
   };
 
+  // Get unique units and sections
+  const uniqueUnits = Array.from(new Set(records.map(r => r.unit).filter(Boolean))).sort();
+  const uniqueSections = Array.from(new Set(records.map(r => r.section).filter(Boolean))).sort();
+
   const filteredRecords = records
     .filter(record => {
+      // Unit filter
+      if (selectedUnit !== 'all' && record.unit !== selectedUnit) return false;
+
+      // Section filter
+      if (selectedSection !== 'all' && record.section !== selectedSection) return false;
+
+      // Search filter
       if (!searchTerm) return true;
 
       if (filterColumn === 'all') {
@@ -238,7 +309,95 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen p-8 bg-gray-900">
+    <div className="min-h-screen bg-gray-900 flex">
+      {/* Sidebar */}
+      <div className="w-64 bg-gray-800 border-r border-gray-700 p-6 overflow-y-auto">
+        <h2 className="text-xl font-bold text-white mb-6">Filters</h2>
+
+        {/* Unit Filter */}
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">Unit</h3>
+          <div className="space-y-2">
+            <label className="flex items-center cursor-pointer group">
+              <input
+                type="radio"
+                name="unit"
+                value="all"
+                checked={selectedUnit === 'all'}
+                onChange={(e) => setSelectedUnit(e.target.value)}
+                className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="ml-2 text-gray-300 group-hover:text-white">All Units</span>
+            </label>
+            {uniqueUnits.map((unit) => (
+              <label key={unit} className="flex items-center cursor-pointer group">
+                <input
+                  type="radio"
+                  name="unit"
+                  value={unit}
+                  checked={selectedUnit === unit}
+                  onChange={(e) => setSelectedUnit(e.target.value)}
+                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="ml-2 text-gray-300 group-hover:text-white">{unit}</span>
+              </label>
+            ))}
+            {uniqueUnits.length === 0 && (
+              <p className="text-sm text-gray-500 italic">No units available</p>
+            )}
+          </div>
+        </div>
+
+        {/* Section Filter */}
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">Section</h3>
+          <div className="space-y-2">
+            <label className="flex items-center cursor-pointer group">
+              <input
+                type="radio"
+                name="section"
+                value="all"
+                checked={selectedSection === 'all'}
+                onChange={(e) => setSelectedSection(e.target.value)}
+                className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="ml-2 text-gray-300 group-hover:text-white">All Sections</span>
+            </label>
+            {uniqueSections.map((section) => (
+              <label key={section} className="flex items-center cursor-pointer group">
+                <input
+                  type="radio"
+                  name="section"
+                  value={section}
+                  checked={selectedSection === section}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="ml-2 text-gray-300 group-hover:text-white">{section}</span>
+              </label>
+            ))}
+            {uniqueSections.length === 0 && (
+              <p className="text-sm text-gray-500 italic">No sections available</p>
+            )}
+          </div>
+        </div>
+
+        {/* Clear Filters */}
+        {(selectedUnit !== 'all' || selectedSection !== 'all') && (
+          <button
+            onClick={() => {
+              setSelectedUnit('all');
+              setSelectedSection('all');
+            }}
+            className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium"
+          >
+            Clear Filters
+          </button>
+        )}
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 p-8 overflow-y-auto">
       <div className="max-w-[1400px] mx-auto">
         {/* Notification Banner */}
         {notification.show && (
@@ -275,6 +434,30 @@ export default function Home() {
               </button>
               <button
                 onClick={handleDeleteCancel}
+                className="px-4 py-2 bg-red-700 text-white rounded hover:bg-red-800 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Delete Confirmation Banner */}
+        {bulkDeleteConfirm && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-4 rounded-lg shadow-lg border-2 bg-red-600 border-red-500 text-white transition-all duration-300 min-w-[400px]">
+            <div className="mb-3">
+              <p className="font-semibold">Delete {selectedIds.size} selected record(s)?</p>
+              <p className="text-sm text-red-100 mt-1">This action cannot be undone.</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleBulkDeleteConfirm}
+                className="px-4 py-2 bg-white text-red-600 rounded hover:bg-gray-100 transition-colors font-medium"
+              >
+                Delete All
+              </button>
+              <button
+                onClick={handleBulkDeleteCancel}
                 className="px-4 py-2 bg-red-700 text-white rounded hover:bg-red-800 transition-colors font-medium"
               >
                 Cancel
@@ -340,11 +523,37 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Bulk Actions Bar */}
+        {selectedIds.size > 0 && (
+          <div className="bg-gray-800 rounded-lg shadow-lg p-4 mb-6 border border-gray-700">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-300">
+                {selectedIds.size} record(s) selected
+              </span>
+              <button
+                onClick={handleBulkDeleteClick}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
+              >
+                <span>🗑️</span>
+                Delete Selected
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-700">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-700 border-b border-gray-600">
                 <tr>
+                  <th className="px-4 py-3 text-left w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === filteredRecords.length && filteredRecords.length > 0}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left">
                     <button
                       onClick={() => handleSort('id')}
@@ -369,8 +578,14 @@ export default function Home() {
                       Sentence <span className="text-gray-400">{getSortIcon('sentence')}</span>
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Prep Vocab</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Recording</th>
+                  <th className="px-4 py-3 text-left">
+                    <button
+                      onClick={() => handleSort('unit')}
+                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
+                    >
+                      Unit <span className="text-gray-400">{getSortIcon('unit')}</span>
+                    </button>
+                  </th>
                   <th className="px-4 py-3 text-left">
                     <button
                       onClick={() => handleSort('section')}
@@ -424,8 +639,17 @@ export default function Home() {
                 ) : (
                   filteredRecords.map((record) => {
                     const isEditing = editingId === record.id;
+                    const isSelected = selectedIds.has(record.id);
                     return (
-                      <tr key={record.id} className="border-b border-gray-700 hover:bg-gray-750 transition-colors">
+                      <tr key={record.id} className={`border-b border-gray-700 transition-colors ${isSelected ? 'bg-blue-900/30' : 'hover:bg-gray-750'}`}>
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => handleSelectOne(record.id, e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                          />
+                        </td>
                         <td className="px-4 py-3 text-gray-400 text-sm">{record.id}</td>
                         <td className="px-4 py-3">
                           {isEditing ? (
@@ -452,14 +676,16 @@ export default function Home() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <button className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors">
-                            准备
-                          </button>
-                        </td>
-                        <td className="px-4 py-3">
-                          <button className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors">
-                            录音
-                          </button>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editedData.unit || ''}
+                              onChange={(e) => handleFieldChange('unit', e.target.value)}
+                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          ) : (
+                            <span className="text-gray-300">{record.unit || '-'}</span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           {isEditing ? (
@@ -570,6 +796,7 @@ export default function Home() {
         <div className="mt-4 text-sm text-gray-400">
           Total records: {filteredRecords.length} / {records.length}
         </div>
+      </div>
       </div>
     </div>
   );

@@ -223,13 +223,12 @@ export default async function handler(
         try {
           await query(
             `INSERT INTO word_records
-            (word, sentence, prep_vocab, recording, section, test_point, collocation, head_word, chinese_translation)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (word, sentence, unit, section, test_point, collocation, head_word, chinese_translation)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               word,
               sentence,
-              null,
-              null,
+              row['Unit'] || row['unit'] || null,
               row['Section'] || row['section'] || null,
               row['test_point'] || null,
               row['collocation'] || null,
