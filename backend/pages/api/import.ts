@@ -142,15 +142,43 @@ function expandContractions(text: string): string {
   return result;
 }
 
-function isProperNoun(word: string, position: number): boolean {
-  // If word starts with uppercase and it's not the first word, likely a proper noun
-  // Also check for common abbreviations (all caps, 2-3 letters)
-  if (word.length >= 2 && word === word.toUpperCase()) {
-    return true; // Abbreviations like PE, USA, etc.
+function isProperNoun(word: string): boolean {
+  // Common proper nouns - names, countries, languages, days, months, etc.
+  const properNouns = new Set([
+    // Common names (add more as needed)
+    'Mike', 'John', 'Mary', 'Sarah', 'Tom', 'Lisa', 'David', 'Anna',
+    'James', 'Emma', 'Michael', 'Emily', 'Robert', 'Olivia', 'William',
+    'Sophia', 'Richard', 'Ava', 'Joseph', 'Isabella', 'Thomas', 'Mia',
+    'Charles', 'Charlotte', 'Daniel', 'Amelia', 'Matthew', 'Harper',
+
+    // Countries and regions
+    'China', 'America', 'USA', 'UK', 'Canada', 'Australia', 'Japan',
+    'Korea', 'France', 'Germany', 'Italy', 'Spain', 'India', 'Brazil',
+    'Russia', 'Mexico', 'England', 'Scotland', 'Wales', 'Ireland',
+    'Europe', 'Asia', 'Africa', 'Antarctica', 'California', 'Texas',
+    'Florida', 'London', 'Paris', 'Tokyo', 'Beijing', 'Shanghai',
+
+    // Languages
+    'English', 'Chinese', 'Spanish', 'French', 'German', 'Japanese',
+    'Korean', 'Italian', 'Portuguese', 'Russian', 'Arabic', 'Hindi',
+
+    // Days and months
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+    'January', 'February', 'March', 'April', 'May', 'June', 'July',
+    'August', 'September', 'October', 'November', 'December',
+
+    // Titles
+    'Mr', 'Mrs', 'Ms', 'Dr', 'Prof', 'President', 'King', 'Queen'
+  ]);
+
+  // Check if word is in proper noun list
+  if (properNouns.has(word)) {
+    return true;
   }
 
-  if (position > 0 && word[0] === word[0].toUpperCase()) {
-    return true; // Capitalized word not at start = proper noun
+  // Check for abbreviations (all caps, 2-4 letters)
+  if (word.length >= 2 && word.length <= 4 && word === word.toUpperCase()) {
+    return true; // Abbreviations like PE, USA, UK, etc.
   }
 
   return false;
@@ -174,8 +202,8 @@ function splitReferenceIntoWords(reference: string): string[] {
   const validWords = words.filter(word => /[a-zA-Z]/.test(word));
 
   // Convert to lowercase except for proper nouns/names
-  const result = validWords.map((word, index) => {
-    if (isProperNoun(word, index)) {
+  const result = validWords.map((word) => {
+    if (isProperNoun(word)) {
       return word; // Keep original case for proper nouns
     }
     return word.toLowerCase();
