@@ -18,6 +18,14 @@ interface WordRecord {
 type SortColumn = keyof WordRecord | null;
 type SortDirection = 'asc' | 'desc' | null;
 
+type NotificationType = 'success' | 'error' | 'info' | 'warning';
+
+interface Notification {
+  show: boolean;
+  type: NotificationType;
+  message: string;
+}
+
 export default function Home() {
   const [records, setRecords] = useState<WordRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,10 +35,28 @@ export default function Home() {
   const [uploading, setUploading] = useState(false);
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editedData, setEditedData] = useState<Partial<WordRecord>>({});
+  const [notification, setNotification] = useState<Notification>({
+    show: false,
+    type: 'info',
+    message: ''
+  });
+  const [deleteConfirm, setDeleteConfirm] = useState<{show: boolean; id: number | null}>({
+    show: false,
+    id: null
+  });
 
   useEffect(() => {
     fetchRecords();
   }, []);
+
+  const showNotification = (type: NotificationType, message: string) => {
+    setNotification({ show: true, type, message });
+    setTimeout(() => {
+      setNotification(prev => ({ ...prev, show: false }));
+    }, 5000);
+  };
 
   const fetchRecords = async () => {
     try {
@@ -59,15 +85,15 @@ export default function Home() {
       });
 
       if (response.ok) {
-        alert('File imported successfully!');
+        showNotification('success', 'File imported successfully!');
         fetchRecords();
         setFile(null);
       } else {
-        alert('Failed to import file');
+        showNotification('error', 'Failed to import file');
       }
     } catch (error) {
       console.error('Upload error:', error);
-      alert('Failed to upload file');
+      showNotification('error', 'Failed to upload file');
     } finally {
       setUploading(false);
     }
@@ -93,6 +119,75 @@ export default function Home() {
       return '⇅';
     }
     return sortDirection === 'asc' ? '↑' : '↓';
+  };
+
+  const handleEdit = (record: WordRecord) => {
+    setEditingId(record.id);
+    setEditedData({ ...record });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditedData({});
+  };
+
+  const handleSave = async (id: number) => {
+    try {
+      const response = await fetch(`/api/records/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(editedData),
+      });
+
+      if (response.ok) {
+        await fetchRecords();
+        setEditingId(null);
+        setEditedData({});
+        showNotification('success', 'Record updated successfully!');
+      } else {
+        showNotification('error', 'Failed to update record');
+      }
+    } catch (error) {
+      console.error('Update error:', error);
+      showNotification('error', 'Failed to update record');
+    }
+  };
+
+  const handleDeleteClick = (id: number) => {
+    setDeleteConfirm({ show: true, id });
+  };
+
+  const handleDeleteConfirm = async () => {
+    const id = deleteConfirm.id;
+    if (!id) return;
+
+    try {
+      const response = await fetch(`/api/records/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await fetchRecords();
+        showNotification('success', 'Record deleted successfully!');
+      } else {
+        showNotification('error', 'Failed to delete record');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      showNotification('error', 'Failed to delete record');
+    } finally {
+      setDeleteConfirm({ show: false, id: null });
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirm({ show: false, id: null });
+  };
+
+  const handleFieldChange = (field: keyof WordRecord, value: string) => {
+    setEditedData(prev => ({ ...prev, [field]: value }));
   };
 
   const filteredRecords = records
@@ -131,57 +226,117 @@ export default function Home() {
     );
   }
 
+  const getNotificationStyles = () => {
+    const baseStyles = "fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-4 rounded-lg shadow-lg border-2 transition-all duration-300 flex items-center gap-3 min-w-[400px]";
+    const typeStyles = {
+      success: "bg-green-600 border-green-500 text-white",
+      error: "bg-red-600 border-red-500 text-white",
+      warning: "bg-yellow-600 border-yellow-500 text-white",
+      info: "bg-blue-600 border-blue-500 text-white"
+    };
+    return `${baseStyles} ${typeStyles[notification.type]}`;
+  };
+
   return (
     <div className="min-h-screen p-8 bg-gray-900">
       <div className="max-w-[1400px] mx-auto">
+        {/* Notification Banner */}
+        {notification.show && (
+          <div className={getNotificationStyles()}>
+            <span className="text-lg font-bold">
+              {notification.type === 'success' && '✓'}
+              {notification.type === 'error' && '✕'}
+              {notification.type === 'warning' && '⚠'}
+              {notification.type === 'info' && 'ℹ'}
+            </span>
+            <span className="flex-1">{notification.message}</span>
+            <button
+              onClick={() => setNotification(prev => ({ ...prev, show: false }))}
+              className="text-white hover:text-gray-200 font-bold"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Delete Confirmation Banner */}
+        {deleteConfirm.show && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-4 rounded-lg shadow-lg border-2 bg-red-600 border-red-500 text-white transition-all duration-300 min-w-[400px]">
+            <div className="mb-3">
+              <p className="font-semibold">Are you sure you want to delete this record?</p>
+              <p className="text-sm text-red-100 mt-1">This action cannot be undone.</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeleteConfirm}
+                className="px-4 py-2 bg-white text-red-600 rounded hover:bg-gray-100 transition-colors font-medium"
+              >
+                Delete
+              </button>
+              <button
+                onClick={handleDeleteCancel}
+                className="px-4 py-2 bg-red-700 text-white rounded hover:bg-red-800 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         <h1 className="text-3xl font-bold mb-6 text-white">应单词表</h1>
 
+        {/* Combined Import and Search Section */}
         <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-700">
-          <h2 className="text-xl font-semibold mb-4 text-white">Import Excel File</h2>
-          <form onSubmit={handleFileUpload} className="flex gap-4 items-end">
-            <div className="flex-1">
-              <label className="block text-sm font-medium mb-2 text-gray-300">Select Excel File</label>
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="block w-full text-sm border border-gray-600 rounded-lg p-2 bg-gray-700 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={!file || uploading}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
-            >
-              {uploading ? 'Uploading...' : 'Upload'}
-            </button>
-          </form>
-        </div>
+          <div className="flex gap-6 items-end">
+            {/* Import Section */}
+            <form onSubmit={handleFileUpload} className="flex gap-4 items-end flex-1">
+              <div className="flex-1">
+                <label className="block text-sm font-medium mb-2 text-gray-300">Import Excel File</label>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="block w-full text-sm border border-gray-600 rounded-lg p-2 bg-gray-700 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!file || uploading}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium whitespace-nowrap"
+              >
+                {uploading ? 'Uploading...' : 'Upload'}
+              </button>
+            </form>
 
-        <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-6 border border-gray-700">
-          <div className="flex gap-4 mb-4">
-            <div className="flex-1">
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            {/* Search Section */}
+            <div className="flex gap-4 flex-1">
+              <div className="flex-1">
+                <label className="block text-sm font-medium mb-2 text-gray-300">Search</label>
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-300">Filter Column</label>
+                <select
+                  value={filterColumn}
+                  onChange={(e) => setFilterColumn(e.target.value)}
+                  className="px-4 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Columns</option>
+                  <option value="word">Word</option>
+                  <option value="sentence">Sentence</option>
+                  <option value="section">Section</option>
+                  <option value="test_point">Test Point</option>
+                  <option value="collocation">Collocation</option>
+                  <option value="head_word">Head Word</option>
+                </select>
+              </div>
             </div>
-            <select
-              value={filterColumn}
-              onChange={(e) => setFilterColumn(e.target.value)}
-              className="px-4 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Columns</option>
-              <option value="word">Word</option>
-              <option value="sentence">Sentence</option>
-              <option value="section">Section</option>
-              <option value="test_point">Test Point</option>
-              <option value="collocation">Collocation</option>
-              <option value="head_word">Head Word</option>
-            </select>
           </div>
         </div>
 
@@ -256,42 +411,156 @@ export default function Home() {
                       Chinese <span className="text-gray-400">{getSortIcon('chinese_translation')}</span>
                     </button>
                   </th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredRecords.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={11} className="px-4 py-8 text-center text-gray-400">
                       No records found. Upload an Excel file to get started.
                     </td>
                   </tr>
                 ) : (
-                  filteredRecords.map((record) => (
-                    <tr key={record.id} className="border-b border-gray-700 hover:bg-gray-750 transition-colors">
-                      <td className="px-4 py-3 text-gray-400 text-sm">{record.id}</td>
-                      <td className="px-4 py-3 text-white font-medium">{record.word}</td>
-                      <td className="px-4 py-3 max-w-md text-gray-300">{record.sentence}</td>
-                      <td className="px-4 py-3">
-                        <button className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors">
-                          准备
-                        </button>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors">
-                          录音
-                        </button>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="px-2 py-1 bg-purple-600 text-white text-xs rounded">
-                          {record.section || 'N/A'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-300">{record.test_point || '-'}</td>
-                      <td className="px-4 py-3 text-gray-300">{record.collocation || '-'}</td>
-                      <td className="px-4 py-3 text-gray-300">{record.head_word || '-'}</td>
-                      <td className="px-4 py-3 text-gray-300">{record.chinese_translation || '-'}</td>
-                    </tr>
-                  ))
+                  filteredRecords.map((record) => {
+                    const isEditing = editingId === record.id;
+                    return (
+                      <tr key={record.id} className="border-b border-gray-700 hover:bg-gray-750 transition-colors">
+                        <td className="px-4 py-3 text-gray-400 text-sm">{record.id}</td>
+                        <td className="px-4 py-3">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editedData.word || ''}
+                              onChange={(e) => handleFieldChange('word', e.target.value)}
+                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          ) : (
+                            <span className="text-white font-medium">{record.word}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 max-w-md">
+                          {isEditing ? (
+                            <textarea
+                              value={editedData.sentence || ''}
+                              onChange={(e) => handleFieldChange('sentence', e.target.value)}
+                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              rows={2}
+                            />
+                          ) : (
+                            <span className="text-gray-300">{record.sentence}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors">
+                            准备
+                          </button>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors">
+                            录音
+                          </button>
+                        </td>
+                        <td className="px-4 py-3">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editedData.section || ''}
+                              onChange={(e) => handleFieldChange('section', e.target.value)}
+                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          ) : (
+                            <span className="px-2 py-1 bg-purple-600 text-white text-xs rounded">
+                              {record.section || 'N/A'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editedData.test_point || ''}
+                              onChange={(e) => handleFieldChange('test_point', e.target.value)}
+                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          ) : (
+                            <span className="text-gray-300">{record.test_point || '-'}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editedData.collocation || ''}
+                              onChange={(e) => handleFieldChange('collocation', e.target.value)}
+                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          ) : (
+                            <span className="text-gray-300">{record.collocation || '-'}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editedData.head_word || ''}
+                              onChange={(e) => handleFieldChange('head_word', e.target.value)}
+                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          ) : (
+                            <span className="text-gray-300">{record.head_word || '-'}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editedData.chinese_translation || ''}
+                              onChange={(e) => handleFieldChange('chinese_translation', e.target.value)}
+                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          ) : (
+                            <span className="text-gray-300">{record.chinese_translation || '-'}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2">
+                            {isEditing ? (
+                              <>
+                                <button
+                                  onClick={() => handleSave(record.id)}
+                                  className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={handleCancelEdit}
+                                  className="px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleEdit(record)}
+                                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClick(record.id)}
+                                  className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
