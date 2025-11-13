@@ -1166,8 +1166,7 @@ export default function Home() {
                       <th
                         key={columnKey}
                         className={`
-                          px-4 py-3 text-left relative group
-                          ${columnKey === 'reference' ? 'max-w-md' : ''}
+                          px-4 py-3 text-left relative group whitespace-nowrap
                           ${isDragging ? 'opacity-0 w-0 p-0 overflow-hidden' : ''}
                           ${isDropTarget && !isDragging ? 'bg-blue-600/20' : 'hover:bg-gray-600/50'}
                           transition-all duration-0
@@ -1243,7 +1242,7 @@ export default function Home() {
                           return (
                             <td
                               key={columnKey}
-                              className={`px-4 py-3 ${columnKey === 'reference' ? 'max-w-md' : ''}`}
+                              className="px-4 py-3 whitespace-nowrap"
                             >
                               {config.render(record, isEditing)}
                             </td>

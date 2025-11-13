@@ -471,35 +471,33 @@ export default function WordStats() {
                 <table className="w-full">
                   <thead className="bg-gray-700 sticky top-0">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase">ID</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase">Word</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase">Chinese</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase">Reference</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase">Unit</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase">Section</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase">Test Point</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase">Collocation</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase">Word Family</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase">Book</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase">Grade</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">ID</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Word</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Chinese</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Reference</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Unit</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Section</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Test Point</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Collocation</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Word Family</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Book</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Grade</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
                     {records.map((record) => (
                       <tr key={record.id} className="hover:bg-gray-700 transition-colors">
-                        <td className="px-4 py-3 text-gray-400 text-sm">{record.id}</td>
-                        <td className="px-4 py-3 text-white font-medium">{record.word}</td>
-                        <td className="px-4 py-3 text-gray-300">{record.chinese || '-'}</td>
-                        <td className="px-4 py-3 text-gray-300 max-w-md">
-                          <div className="line-clamp-2">{record.reference}</div>
-                        </td>
-                        <td className="px-4 py-3 text-gray-300">{record.unit || '-'}</td>
-                        <td className="px-4 py-3 text-gray-300">{record.section || '-'}</td>
-                        <td className="px-4 py-3 text-gray-300">{record.test_point || '-'}</td>
-                        <td className="px-4 py-3 text-gray-300">{record.collocation || '-'}</td>
-                        <td className="px-4 py-3 text-gray-300">{record.word_family || '-'}</td>
-                        <td className="px-4 py-3 text-gray-300">{record.book || '-'}</td>
-                        <td className="px-4 py-3 text-gray-300">{record.grade || '-'}</td>
+                        <td className="px-4 py-3 text-gray-400 text-sm whitespace-nowrap">{record.id}</td>
+                        <td className="px-4 py-3 text-white font-medium whitespace-nowrap">{record.word}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.chinese || '-'}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.reference}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.unit || '-'}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.section || '-'}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.test_point || '-'}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.collocation || '-'}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.word_family || '-'}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.book || '-'}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.grade || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
