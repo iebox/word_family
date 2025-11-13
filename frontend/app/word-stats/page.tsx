@@ -174,8 +174,8 @@ export default function WordStats() {
 
   return (
     <div className="min-h-screen bg-gray-900 flex">
-      {/* Sidebar */}
-      <div className={`${sidebarCollapsed ? 'w-16' : 'w-80'} bg-gray-800 border-r border-gray-700 p-6 overflow-y-auto`}>
+        {/* Sidebar */}
+        <div className={`${sidebarCollapsed ? 'w-16' : 'w-80'} bg-gray-800 border-r border-gray-700 p-6 overflow-y-auto`}>
         <div className="flex items-center justify-between mb-6">
           {!sidebarCollapsed && (
             <h1 className="text-2xl font-bold text-white">应试单词表</h1>
@@ -297,27 +297,39 @@ export default function WordStats() {
                       return (
                         <div key={stat.headword} className="space-y-1">
                           {/* Headword Row */}
-                          <div className="flex items-stretch gap-1">
-                            {/* Expand/Collapse Button */}
-                            <button
-                              onClick={() => toggleFamilyExpand(stat.headword)}
-                              className="px-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-gray-300"
-                              title={isExpanded ? "Collapse" : "Expand"}
-                            >
-                              {isExpanded ? '▼' : '▶'}
-                            </button>
-
+                          <div className={`flex items-stretch rounded-lg overflow-hidden transition-all ${
+                            isHeadwordSelected ? 'bg-green-600' : 'bg-gray-700 hover:bg-gray-650'
+                          }`}>
                             {/* Headword Button */}
                             <button
                               onClick={() => handleFamilyClick(stat.headword)}
-                              className={`flex-1 px-3 py-2 rounded-lg text-left transition-colors ${
-                                isHeadwordSelected
-                                  ? 'bg-green-600 text-white'
-                                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                              }`}
+                              className="flex-1 px-3 py-2 text-left transition-colors"
                             >
                               <div className="flex justify-between items-center">
-                                <span className="font-bold truncate">{stat.headword}</span>
+                                <div className="flex items-center gap-2">
+                                  {/* Expand/Collapse Icon */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleFamilyExpand(stat.headword);
+                                    }}
+                                    className={`flex items-center justify-center w-5 h-5 rounded transition-all ${
+                                      isExpanded ? 'rotate-90' : 'rotate-0'
+                                    } ${isHeadwordSelected ? 'hover:bg-green-700' : 'hover:bg-gray-600'}`}
+                                    title={isExpanded ? "Collapse" : "Expand"}
+                                  >
+                                    <svg
+                                      className={`w-3 h-3 transition-transform ${isHeadwordSelected ? 'text-white' : 'text-gray-400'}`}
+                                      fill="currentColor"
+                                      viewBox="0 0 20 20"
+                                    >
+                                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  </button>
+                                  <span className={`font-bold truncate ${isHeadwordSelected ? 'text-white' : 'text-gray-200'}`}>
+                                    {stat.headword}
+                                  </span>
+                                </div>
                                 <span className={`ml-2 font-semibold ${isHeadwordSelected ? 'text-green-200' : 'text-green-400'}`}>
                                   {stat.totalCount}
                                 </span>
@@ -327,27 +339,43 @@ export default function WordStats() {
 
                           {/* Derivatives List (Expandable) */}
                           {isExpanded && (
-                            <div className="ml-8 space-y-1">
-                              {stat.derivatives.map((derivative) => {
+                            <div className="ml-7 space-y-1">
+                              {stat.derivatives.map((derivative, index) => {
                                 const isDerivativeSelected = selectedFamily === stat.headword && selectedDerivative === derivative.word;
 
                                 return (
-                                  <button
+                                  <div
                                     key={derivative.word}
-                                    onClick={() => handleDerivativeClick(stat.headword, derivative.word)}
-                                    className={`w-full px-3 py-2 rounded-lg text-left transition-colors ${
-                                      isDerivativeSelected
-                                        ? 'bg-green-500 text-white'
-                                        : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                                    }`}
+                                    className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2"
+                                    style={{
+                                      animationDelay: `${index * 50}ms`,
+                                      animationDuration: '200ms'
+                                    }}
                                   >
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-sm truncate">{derivative.word}</span>
-                                      <span className={`ml-2 text-sm font-semibold ${isDerivativeSelected ? 'text-green-100' : 'text-green-300'}`}>
-                                        {derivative.count}
-                                      </span>
+                                    {/* Connection Line */}
+                                    <div className="flex flex-col items-center">
+                                      <div className={`w-0.5 h-2 ${index === 0 ? 'bg-transparent' : 'bg-gray-600'}`}></div>
+                                      <div className="w-2 h-2 rounded-full bg-gray-600"></div>
+                                      <div className={`w-0.5 flex-1 ${index === stat.derivatives.length - 1 ? 'bg-transparent' : 'bg-gray-600'}`}></div>
                                     </div>
-                                  </button>
+
+                                    {/* Derivative Button */}
+                                    <button
+                                      onClick={() => handleDerivativeClick(stat.headword, derivative.word)}
+                                      className={`flex-1 px-3 py-2 rounded-lg text-left transition-all ${
+                                        isDerivativeSelected
+                                          ? 'bg-green-500 text-white shadow-md'
+                                          : 'bg-gray-600 text-gray-300 hover:bg-gray-500 hover:shadow-sm'
+                                      }`}
+                                    >
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-sm truncate">{derivative.word}</span>
+                                        <span className={`ml-2 text-sm font-semibold ${isDerivativeSelected ? 'text-green-100' : 'text-green-300'}`}>
+                                          {derivative.count}
+                                        </span>
+                                      </div>
+                                    </button>
+                                  </div>
                                 );
                               })}
                             </div>
