@@ -11,6 +11,8 @@ interface WordRecord {
   collocation?: string;
   word_family?: string;
   book?: string;
+  grade?: string;
+  chinese?: string;
 }
 
 export default async function handler(

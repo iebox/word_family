@@ -19,7 +19,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         test_point,
         collocation,
         word_family,
-        book
+        book,
+        grade,
+        chinese
       } = req.body;
 
       await query(
@@ -31,7 +33,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
              test_point = ?,
              collocation = ?,
              word_family = ?,
-             book = ?
+             book = ?,
+             grade = ?,
+             chinese = ?
          WHERE id = ?`,
         [
           word,
@@ -42,6 +46,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           collocation || null,
           word_family || null,
           book || null,
+          grade || null,
+          chinese || null,
           id
         ]
       );

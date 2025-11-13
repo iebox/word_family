@@ -352,8 +352,8 @@ export default async function handler(
         try {
           await query(
             `INSERT INTO word_records
-            (word, reference, unit, section, test_point, collocation, word_family, book)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            (word, reference, unit, section, test_point, collocation, word_family, book, grade, chinese)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               word,
               reference,
@@ -362,7 +362,9 @@ export default async function handler(
               row['test_point'] || null,
               row['collocation'] || null,
               null,
-              row['Book'] || row['book'] || null
+              row['Book'] || row['book'] || null,
+              row['Grade'] || row['grade'] || null,
+              row['Chinese'] || row['chinese'] || null
             ]
           );
           insertedRecords.push({ word, reference });

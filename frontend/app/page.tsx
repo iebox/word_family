@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 interface WordRecord {
@@ -13,6 +13,8 @@ interface WordRecord {
   collocation?: string;
   word_family?: string;
   book?: string;
+  grade?: string;
+  chinese?: string;
 }
 
 type SortColumn = keyof WordRecord | null;
@@ -33,8 +35,8 @@ export default function Home() {
   const [filterColumn, setFilterColumn] = useState('all');
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [sortColumn, setSortColumn] = useState<SortColumn>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [sortColumn, setSortColumn] = useState<SortColumn>('id');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editedData, setEditedData] = useState<Partial<WordRecord>>({});
   const [notification, setNotification] = useState<Notification>({
@@ -48,11 +50,21 @@ export default function Home() {
   });
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
-  const [selectedUnit, setSelectedUnit] = useState<string>('all');
-  const [selectedSection, setSelectedSection] = useState<string>('all');
+  const [selectedGrades, setSelectedGrades] = useState<Set<string>>(new Set());
+  const [selectedUnits, setSelectedUnits] = useState<Set<string>>(new Set());
+  const [selectedSections, setSelectedSections] = useState<Set<string>>(new Set());
+  const [selectedTestPoints, setSelectedTestPoints] = useState<Set<string>>(new Set());
+  const [selectedCollocations, setSelectedCollocations] = useState<Set<string>>(new Set());
+  const [selectedBooks, setSelectedBooks] = useState<Set<string>>(new Set());
   const [populatingHeadwords, setPopulatingHeadwords] = useState(false);
   const [populationProgress, setPopulationProgress] = useState({ current: 0, total: 0 });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+
+  // Define default column order with chinese next to word
+  const defaultColumnOrder = ['id', 'word', 'chinese', 'reference', 'unit', 'section', 'test_point', 'collocation', 'word_family', 'book', 'grade'];
+  const [columnOrder, setColumnOrder] = useState<string[]>(defaultColumnOrder);
 
   // Load sidebar state from localStorage on mount
   useEffect(() => {
@@ -60,12 +72,28 @@ export default function Home() {
     if (savedSidebarState !== null) {
       setSidebarCollapsed(savedSidebarState === 'true');
     }
+
+    // Load column order from localStorage
+    const savedColumnOrder = localStorage.getItem('columnOrder');
+    if (savedColumnOrder) {
+      try {
+        const parsed = JSON.parse(savedColumnOrder);
+        setColumnOrder(parsed);
+      } catch (error) {
+        console.error('Failed to parse column order:', error);
+      }
+    }
   }, []);
 
   // Save sidebar state to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('sidebarCollapsed', String(sidebarCollapsed));
   }, [sidebarCollapsed]);
+
+  // Save column order to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('columnOrder', JSON.stringify(columnOrder));
+  }, [columnOrder]);
 
   useEffect(() => {
     // Try to load from sessionStorage first for instant display
@@ -335,6 +363,90 @@ export default function Home() {
     setEditedData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleDragStart = (e: React.DragEvent, column: string) => {
+    setDraggedColumn(column);
+    // Set drag effect
+    e.dataTransfer.effectAllowed = 'move';
+    // Create a semi-transparent ghost image
+    if (e.currentTarget instanceof HTMLElement) {
+      const ghost = e.currentTarget.cloneNode(true) as HTMLElement;
+      ghost.style.opacity = '0.5';
+      document.body.appendChild(ghost);
+      e.dataTransfer.setDragImage(ghost, 0, 0);
+      setTimeout(() => document.body.removeChild(ghost), 0);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetColumn: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    if (draggedColumn && draggedColumn !== targetColumn) {
+      setDragOverColumn(targetColumn);
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent, targetColumn: string) => {
+    e.preventDefault();
+    if (draggedColumn && draggedColumn !== targetColumn) {
+      setDragOverColumn(targetColumn);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only clear if we're leaving the column header, not entering a child
+    if (e.currentTarget === e.target) {
+      setDragOverColumn(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetColumn: string) => {
+    e.preventDefault();
+
+    if (!draggedColumn || draggedColumn === targetColumn) {
+      setDraggedColumn(null);
+      setDragOverColumn(null);
+      return;
+    }
+
+    const draggedIdx = columnOrder.indexOf(draggedColumn);
+    const targetIdx = columnOrder.indexOf(targetColumn);
+
+    // Build new order by filtering and inserting
+    const filteredOrder = columnOrder.filter(col => col !== draggedColumn);
+
+    let newOrder: string[];
+    if (draggedIdx < targetIdx) {
+      // Dragging RIGHT: insert after target
+      const targetPosition = filteredOrder.indexOf(targetColumn);
+      newOrder = [
+        ...filteredOrder.slice(0, targetPosition + 1),
+        draggedColumn,
+        ...filteredOrder.slice(targetPosition + 1)
+      ];
+    } else {
+      // Dragging LEFT: insert before target
+      const targetPosition = filteredOrder.indexOf(targetColumn);
+      newOrder = [
+        ...filteredOrder.slice(0, targetPosition),
+        draggedColumn,
+        ...filteredOrder.slice(targetPosition)
+      ];
+    }
+
+    console.log('Reorder:', { from: draggedColumn, to: targetColumn, newOrder });
+
+    // Update state immediately
+    setColumnOrder(newOrder);
+    setDraggedColumn(null);
+    setDragOverColumn(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedColumn(null);
+    setDragOverColumn(null);
+  };
+
   const highlightWord = (sentence: string, targetWord: string) => {
     // Split sentence while preserving spaces and punctuation
     const words = sentence.split(/(\s+)/);
@@ -362,17 +474,180 @@ export default function Home() {
     );
   };
 
-  // Get unique units and sections
+  // Column configuration
+  const columnConfig: Record<string, {
+    label: string;
+    sortable: boolean;
+    render: (record: WordRecord, isEditing: boolean) => React.ReactNode;
+  }> = {
+    id: {
+      label: 'ID',
+      sortable: true,
+      render: (record) => <span className="text-gray-400 text-sm">{record.id}</span>
+    },
+    word: {
+      label: 'Word',
+      sortable: true,
+      render: (record, isEditing) => isEditing ? (
+        <input
+          type="text"
+          value={editedData.word || ''}
+          onChange={(e) => handleFieldChange('word', e.target.value)}
+          className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      ) : (
+        <span className="text-white font-medium">{record.word}</span>
+      )
+    },
+    chinese: {
+      label: 'Chinese',
+      sortable: true,
+      render: (record, isEditing) => isEditing ? (
+        <textarea
+          value={editedData.chinese || ''}
+          onChange={(e) => handleFieldChange('chinese', e.target.value)}
+          className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          rows={2}
+        />
+      ) : (
+        <span className="text-gray-300">{record.chinese || '-'}</span>
+      )
+    },
+    reference: {
+      label: 'Reference',
+      sortable: true,
+      render: (record, isEditing) => isEditing ? (
+        <textarea
+          value={editedData.reference || ''}
+          onChange={(e) => handleFieldChange('reference', e.target.value)}
+          className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          rows={2}
+        />
+      ) : (
+        <span className="text-gray-300">
+          {highlightWord(record.reference, record.word)}
+        </span>
+      )
+    },
+    unit: {
+      label: 'Unit',
+      sortable: true,
+      render: (record, isEditing) => isEditing ? (
+        <input
+          type="text"
+          value={editedData.unit || ''}
+          onChange={(e) => handleFieldChange('unit', e.target.value)}
+          className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      ) : (
+        <span className="text-gray-300">{record.unit || '-'}</span>
+      )
+    },
+    section: {
+      label: 'Section',
+      sortable: true,
+      render: (record, isEditing) => isEditing ? (
+        <input
+          type="text"
+          value={editedData.section || ''}
+          onChange={(e) => handleFieldChange('section', e.target.value)}
+          className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      ) : (
+        <span className="px-2 py-1 bg-purple-600 text-white text-xs rounded">
+          {record.section || 'N/A'}
+        </span>
+      )
+    },
+    test_point: {
+      label: 'Test Point',
+      sortable: true,
+      render: (record, isEditing) => isEditing ? (
+        <input
+          type="text"
+          value={editedData.test_point || ''}
+          onChange={(e) => handleFieldChange('test_point', e.target.value)}
+          className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      ) : (
+        <span className="text-gray-300">{record.test_point || '-'}</span>
+      )
+    },
+    collocation: {
+      label: 'Collocation',
+      sortable: true,
+      render: (record, isEditing) => isEditing ? (
+        <input
+          type="text"
+          value={editedData.collocation || ''}
+          onChange={(e) => handleFieldChange('collocation', e.target.value)}
+          className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      ) : (
+        <span className="text-gray-300">{record.collocation || '-'}</span>
+      )
+    },
+    word_family: {
+      label: 'Word Family',
+      sortable: true,
+      render: (record, isEditing) => isEditing ? (
+        <input
+          type="text"
+          value={editedData.word_family || ''}
+          onChange={(e) => handleFieldChange('word_family', e.target.value)}
+          className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      ) : (
+        <span className="text-gray-300">{record.word_family || '-'}</span>
+      )
+    },
+    book: {
+      label: 'Book',
+      sortable: true,
+      render: (record, isEditing) => isEditing ? (
+        <input
+          type="text"
+          value={editedData.book || ''}
+          onChange={(e) => handleFieldChange('book', e.target.value)}
+          className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      ) : (
+        <span className="text-gray-300">{record.book || '-'}</span>
+      )
+    },
+    grade: {
+      label: 'Grade',
+      sortable: true,
+      render: (record, isEditing) => isEditing ? (
+        <input
+          type="text"
+          value={editedData.grade || ''}
+          onChange={(e) => handleFieldChange('grade', e.target.value)}
+          className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      ) : (
+        <span className="text-gray-300">{record.grade || '-'}</span>
+      )
+    }
+  };
+
+  // Get unique values for all filter types
+  const uniqueGrades = Array.from(new Set(records.map(r => r.grade).filter(Boolean))).sort();
   const uniqueUnits = Array.from(new Set(records.map(r => r.unit).filter(Boolean))).sort();
   const uniqueSections = Array.from(new Set(records.map(r => r.section).filter(Boolean))).sort();
+  const uniqueTestPoints = Array.from(new Set(records.map(r => r.test_point).filter(Boolean))).sort();
+  const uniqueCollocations = Array.from(new Set(records.map(r => r.collocation).filter(Boolean))).sort();
+  const uniqueBooks = Array.from(new Set(records.map(r => r.book).filter(Boolean))).sort();
 
   const filteredRecords = records
     .filter(record => {
-      // Unit filter
-      if (selectedUnit !== 'all' && record.unit !== selectedUnit) return false;
-
-      // Section filter
-      if (selectedSection !== 'all' && record.section !== selectedSection) return false;
+      // Multi-select filters
+      if (selectedGrades.size > 0 && !selectedGrades.has(record.grade || '')) return false;
+      if (selectedUnits.size > 0 && !selectedUnits.has(record.unit || '')) return false;
+      if (selectedSections.size > 0 && !selectedSections.has(record.section || '')) return false;
+      if (selectedTestPoints.size > 0 && !selectedTestPoints.has(record.test_point || '')) return false;
+      if (selectedCollocations.size > 0 && !selectedCollocations.has(record.collocation || '')) return false;
+      if (selectedBooks.size > 0 && !selectedBooks.has(record.book || '')) return false;
 
       // Search filter
       if (!searchTerm) return true;
@@ -450,30 +725,54 @@ export default function Home() {
 
             <h2 className="text-xl font-bold text-white mb-6">Filters</h2>
 
+        {/* Grade Filter */}
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">Grade</h3>
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {uniqueGrades.map((grade) => (
+              <label key={grade} className="flex items-center cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={selectedGrades.has(grade)}
+                  onChange={(e) => {
+                    const newSet = new Set(selectedGrades);
+                    if (e.target.checked) {
+                      newSet.add(grade);
+                    } else {
+                      newSet.delete(grade);
+                    }
+                    setSelectedGrades(newSet);
+                  }}
+                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="ml-2 text-gray-300 group-hover:text-white">{grade}</span>
+              </label>
+            ))}
+            {uniqueGrades.length === 0 && (
+              <p className="text-sm text-gray-500 italic">No grades available</p>
+            )}
+          </div>
+        </div>
+
         {/* Unit Filter */}
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-gray-300 mb-3">Unit</h3>
-          <div className="space-y-2">
-            <label className="flex items-center cursor-pointer group">
-              <input
-                type="radio"
-                name="unit"
-                value="all"
-                checked={selectedUnit === 'all'}
-                onChange={(e) => setSelectedUnit(e.target.value)}
-                className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-2 focus:ring-blue-500"
-              />
-              <span className="ml-2 text-gray-300 group-hover:text-white">All Units</span>
-            </label>
+          <div className="space-y-2 max-h-40 overflow-y-auto">
             {uniqueUnits.map((unit) => (
               <label key={unit} className="flex items-center cursor-pointer group">
                 <input
-                  type="radio"
-                  name="unit"
-                  value={unit}
-                  checked={selectedUnit === unit}
-                  onChange={(e) => setSelectedUnit(e.target.value)}
-                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-2 focus:ring-blue-500"
+                  type="checkbox"
+                  checked={selectedUnits.has(unit)}
+                  onChange={(e) => {
+                    const newSet = new Set(selectedUnits);
+                    if (e.target.checked) {
+                      newSet.add(unit);
+                    } else {
+                      newSet.delete(unit);
+                    }
+                    setSelectedUnits(newSet);
+                  }}
+                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
                 />
                 <span className="ml-2 text-gray-300 group-hover:text-white">{unit}</span>
               </label>
@@ -487,27 +786,22 @@ export default function Home() {
         {/* Section Filter */}
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-gray-300 mb-3">Section</h3>
-          <div className="space-y-2">
-            <label className="flex items-center cursor-pointer group">
-              <input
-                type="radio"
-                name="section"
-                value="all"
-                checked={selectedSection === 'all'}
-                onChange={(e) => setSelectedSection(e.target.value)}
-                className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-2 focus:ring-blue-500"
-              />
-              <span className="ml-2 text-gray-300 group-hover:text-white">All Sections</span>
-            </label>
+          <div className="space-y-2 max-h-40 overflow-y-auto">
             {uniqueSections.map((section) => (
               <label key={section} className="flex items-center cursor-pointer group">
                 <input
-                  type="radio"
-                  name="section"
-                  value={section}
-                  checked={selectedSection === section}
-                  onChange={(e) => setSelectedSection(e.target.value)}
-                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-2 focus:ring-blue-500"
+                  type="checkbox"
+                  checked={selectedSections.has(section)}
+                  onChange={(e) => {
+                    const newSet = new Set(selectedSections);
+                    if (e.target.checked) {
+                      newSet.add(section);
+                    } else {
+                      newSet.delete(section);
+                    }
+                    setSelectedSections(newSet);
+                  }}
+                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
                 />
                 <span className="ml-2 text-gray-300 group-hover:text-white">{section}</span>
               </label>
@@ -518,16 +812,108 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Test Point Filter */}
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">Test Point</h3>
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {uniqueTestPoints.map((testPoint) => (
+              <label key={testPoint} className="flex items-center cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={selectedTestPoints.has(testPoint)}
+                  onChange={(e) => {
+                    const newSet = new Set(selectedTestPoints);
+                    if (e.target.checked) {
+                      newSet.add(testPoint);
+                    } else {
+                      newSet.delete(testPoint);
+                    }
+                    setSelectedTestPoints(newSet);
+                  }}
+                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="ml-2 text-gray-300 group-hover:text-white">{testPoint}</span>
+              </label>
+            ))}
+            {uniqueTestPoints.length === 0 && (
+              <p className="text-sm text-gray-500 italic">No test points available</p>
+            )}
+          </div>
+        </div>
+
+        {/* Collocation Filter */}
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">Collocation</h3>
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {uniqueCollocations.map((collocation) => (
+              <label key={collocation} className="flex items-center cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={selectedCollocations.has(collocation)}
+                  onChange={(e) => {
+                    const newSet = new Set(selectedCollocations);
+                    if (e.target.checked) {
+                      newSet.add(collocation);
+                    } else {
+                      newSet.delete(collocation);
+                    }
+                    setSelectedCollocations(newSet);
+                  }}
+                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="ml-2 text-gray-300 group-hover:text-white">{collocation}</span>
+              </label>
+            ))}
+            {uniqueCollocations.length === 0 && (
+              <p className="text-sm text-gray-500 italic">No collocations available</p>
+            )}
+          </div>
+        </div>
+
+        {/* Book Filter */}
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">Book</h3>
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {uniqueBooks.map((book) => (
+              <label key={book} className="flex items-center cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={selectedBooks.has(book)}
+                  onChange={(e) => {
+                    const newSet = new Set(selectedBooks);
+                    if (e.target.checked) {
+                      newSet.add(book);
+                    } else {
+                      newSet.delete(book);
+                    }
+                    setSelectedBooks(newSet);
+                  }}
+                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="ml-2 text-gray-300 group-hover:text-white">{book}</span>
+              </label>
+            ))}
+            {uniqueBooks.length === 0 && (
+              <p className="text-sm text-gray-500 italic">No books available</p>
+            )}
+          </div>
+        </div>
+
         {/* Clear Filters */}
-        {(selectedUnit !== 'all' || selectedSection !== 'all') && (
+        {(selectedGrades.size > 0 || selectedUnits.size > 0 || selectedSections.size > 0 ||
+          selectedTestPoints.size > 0 || selectedCollocations.size > 0 || selectedBooks.size > 0) && (
           <button
             onClick={() => {
-              setSelectedUnit('all');
-              setSelectedSection('all');
+              setSelectedGrades(new Set());
+              setSelectedUnits(new Set());
+              setSelectedSections(new Set());
+              setSelectedTestPoints(new Set());
+              setSelectedCollocations(new Set());
+              setSelectedBooks(new Set());
             }}
             className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium"
           >
-            Clear Filters
+            Clear All Filters
           </button>
         )}
           </>
@@ -712,85 +1098,76 @@ export default function Home() {
                       className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left">
-                    <button
-                      onClick={() => handleSort('id')}
-                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
-                    >
-                      ID <span className="text-gray-400">{getSortIcon('id')}</span>
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-left">
-                    <button
-                      onClick={() => handleSort('word')}
-                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
-                    >
-                      Word <span className="text-gray-400">{getSortIcon('word')}</span>
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-left">
-                    <button
-                      onClick={() => handleSort('reference')}
-                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
-                    >
-                      Reference <span className="text-gray-400">{getSortIcon('reference')}</span>
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-left">
-                    <button
-                      onClick={() => handleSort('unit')}
-                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
-                    >
-                      Unit <span className="text-gray-400">{getSortIcon('unit')}</span>
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-left">
-                    <button
-                      onClick={() => handleSort('section')}
-                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
-                    >
-                      Section <span className="text-gray-400">{getSortIcon('section')}</span>
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-left">
-                    <button
-                      onClick={() => handleSort('test_point')}
-                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
-                    >
-                      Test Point <span className="text-gray-400">{getSortIcon('test_point')}</span>
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-left">
-                    <button
-                      onClick={() => handleSort('collocation')}
-                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
-                    >
-                      Collocation <span className="text-gray-400">{getSortIcon('collocation')}</span>
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-left">
-                    <button
-                      onClick={() => handleSort('word_family')}
-                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
-                    >
-                      Word Family <span className="text-gray-400">{getSortIcon('word_family')}</span>
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-left">
-                    <button
-                      onClick={() => handleSort('book')}
-                      className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors"
-                    >
-                      Book <span className="text-gray-400">{getSortIcon('book')}</span>
-                    </button>
-                  </th>
+                  {columnOrder.map((columnKey, index) => {
+                    const config = columnConfig[columnKey];
+                    const isDragging = draggedColumn === columnKey;
+                    const isDropTarget = dragOverColumn === columnKey;
+                    const draggedIndex = draggedColumn ? columnOrder.indexOf(draggedColumn) : -1;
+                    const dropIndex = dragOverColumn ? columnOrder.indexOf(dragOverColumn) : -1;
+
+                    // Determine if we should show drop indicator on left or right
+                    const showDropBarLeft = draggedColumn && isDropTarget && !isDragging && draggedIndex > dropIndex;
+                    const showDropBarRight = draggedColumn && isDropTarget && !isDragging && draggedIndex < dropIndex;
+
+                    return (
+                      <th
+                        key={columnKey}
+                        className={`
+                          px-4 py-3 text-left relative group
+                          ${columnKey === 'reference' ? 'max-w-md' : ''}
+                          ${isDragging ? 'opacity-0 w-0 p-0 overflow-hidden' : ''}
+                          ${isDropTarget && !isDragging ? 'bg-blue-600/20' : 'hover:bg-gray-600/50'}
+                          transition-all duration-0
+                          cursor-grab active:cursor-grabbing
+                        `}
+                        draggable={!isDragging}
+                        onDragStart={(e) => handleDragStart(e, columnKey)}
+                        onDragOver={(e) => handleDragOver(e, columnKey)}
+                        onDragEnter={(e) => handleDragEnter(e, columnKey)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, columnKey)}
+                        onDragEnd={handleDragEnd}
+                        title="Drag to reorder columns"
+                      >
+                        {/* Vertical drop indicator bar - LEFT side (dragging from right to left) */}
+                        {showDropBarLeft && (
+                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 shadow-lg shadow-blue-500/50 animate-pulse z-10"></div>
+                        )}
+
+                        {/* Vertical drop indicator bar - RIGHT side (dragging from left to right) */}
+                        {showDropBarRight && (
+                          <div className="absolute right-0 top-0 bottom-0 w-1 bg-blue-500 shadow-lg shadow-blue-500/50 animate-pulse z-10"></div>
+                        )}
+
+                        {config.sortable ? (
+                          <button
+                            onClick={() => handleSort(columnKey as keyof WordRecord)}
+                            className="flex items-center gap-2 text-sm font-semibold text-gray-200 hover:text-white transition-colors select-none whitespace-nowrap w-full"
+                            onMouseDown={(e) => e.stopPropagation()}
+                          >
+                            <span className="text-gray-400 group-hover:text-gray-300 text-base font-bold">⋮⋮</span>
+                            {config.label}
+                            <span className="text-gray-400 ml-auto">{getSortIcon(columnKey as keyof WordRecord)}</span>
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2 select-none whitespace-nowrap w-full">
+                            <span className="text-gray-400 group-hover:text-gray-300 text-base font-bold">⋮⋮</span>
+                            <span className="text-sm font-semibold text-gray-200 group-hover:text-white">{config.label}</span>
+                          </div>
+                        )}
+
+                        {/* Visual indicator on hover */}
+                        <div className="absolute inset-0 border-2 border-blue-400 rounded opacity-0 group-hover:opacity-20 pointer-events-none transition-opacity duration-150"></div>
+                      </th>
+                    );
+                  })}
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredRecords.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={columnOrder.length + 2} className="px-4 py-8 text-center text-gray-400">
                       No records found. Upload an Excel file to get started.
                     </td>
                   </tr>
@@ -808,107 +1185,17 @@ export default function Home() {
                             className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
                           />
                         </td>
-                        <td className="px-4 py-3 text-gray-400 text-sm">{record.id}</td>
-                        <td className="px-4 py-3">
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              value={editedData.word || ''}
-                              onChange={(e) => handleFieldChange('word', e.target.value)}
-                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          ) : (
-                            <span className="text-white font-medium">{record.word}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 max-w-md">
-                          {isEditing ? (
-                            <textarea
-                              value={editedData.reference || ''}
-                              onChange={(e) => handleFieldChange('reference', e.target.value)}
-                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              rows={2}
-                            />
-                          ) : (
-                            <span className="text-gray-300">
-                              {highlightWord(record.reference, record.word)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              value={editedData.unit || ''}
-                              onChange={(e) => handleFieldChange('unit', e.target.value)}
-                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          ) : (
-                            <span className="text-gray-300">{record.unit || '-'}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              value={editedData.section || ''}
-                              onChange={(e) => handleFieldChange('section', e.target.value)}
-                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          ) : (
-                            <span className="px-2 py-1 bg-purple-600 text-white text-xs rounded">
-                              {record.section || 'N/A'}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              value={editedData.test_point || ''}
-                              onChange={(e) => handleFieldChange('test_point', e.target.value)}
-                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          ) : (
-                            <span className="text-gray-300">{record.test_point || '-'}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              value={editedData.collocation || ''}
-                              onChange={(e) => handleFieldChange('collocation', e.target.value)}
-                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          ) : (
-                            <span className="text-gray-300">{record.collocation || '-'}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              value={editedData.word_family || ''}
-                              onChange={(e) => handleFieldChange('word_family', e.target.value)}
-                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          ) : (
-                            <span className="text-gray-300">{record.word_family || '-'}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              value={editedData.book || ''}
-                              onChange={(e) => handleFieldChange('book', e.target.value)}
-                              className="w-full px-2 py-1 bg-gray-700 text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          ) : (
-                            <span className="text-gray-300">{record.book || '-'}</span>
-                          )}
-                        </td>
+                        {columnOrder.map((columnKey) => {
+                          const config = columnConfig[columnKey];
+                          return (
+                            <td
+                              key={columnKey}
+                              className={`px-4 py-3 ${columnKey === 'reference' ? 'max-w-md' : ''}`}
+                            >
+                              {config.render(record, isEditing)}
+                            </td>
+                          );
+                        })}
                         <td className="px-4 py-3">
                           <div className="flex gap-2">
                             {isEditing ? (
