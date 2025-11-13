@@ -718,9 +718,17 @@ export default function Home() {
               href="/spot-word"
               prefetch={true}
               scroll={false}
-              className="block w-full mb-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-center"
+              className="block w-full mb-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-center"
             >
               Spot Word →
+            </Link>
+
+            <Link
+              href="/word-stats"
+              prefetch={true}
+              className="block w-full mb-6 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium text-center"
+            >
+              Word Statistics →
             </Link>
 
             <h2 className="text-xl font-bold text-white mb-6">Filters</h2>
