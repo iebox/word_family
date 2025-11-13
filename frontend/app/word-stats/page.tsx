@@ -8,10 +8,15 @@ interface WordStat {
   count: number;
 }
 
-interface FamilyStat {
-  word_family: string;
-  headword: string;
+interface WordCount {
+  word: string;
   count: number;
+}
+
+interface FamilyStat {
+  headword: string;
+  totalCount: number;
+  derivatives: WordCount[];
 }
 
 interface WordRecord {
@@ -35,11 +40,14 @@ export default function WordStats() {
   const [familyStats, setFamilyStats] = useState<FamilyStat[]>([]);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [selectedFamily, setSelectedFamily] = useState<string | null>(null);
+  const [selectedDerivative, setSelectedDerivative] = useState<string | null>(null);
+  const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
   const [records, setRecords] = useState<WordRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('words');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Load sidebar state from localStorage
   useEffect(() => {
@@ -95,13 +103,14 @@ export default function WordStats() {
     }
   };
 
-  const handleFamilyClick = async (family: string) => {
+  const handleFamilyClick = async (headword: string) => {
     setLoadingRecords(true);
-    setSelectedFamily(family);
+    setSelectedFamily(headword);
     setSelectedWord(null);
+    setSelectedDerivative(null);
 
     try {
-      const response = await fetch(`/api/stats/families?family=${encodeURIComponent(family)}`);
+      const response = await fetch(`/api/stats/families?family=${encodeURIComponent(headword)}`);
       const data = await response.json();
       setRecords(data);
     } catch (error) {
@@ -112,12 +121,56 @@ export default function WordStats() {
     }
   };
 
+  const handleDerivativeClick = async (headword: string, derivative: string) => {
+    setLoadingRecords(true);
+    setSelectedFamily(headword);
+    setSelectedWord(null);
+    setSelectedDerivative(derivative);
+
+    try {
+      const response = await fetch(`/api/stats/words?word=${encodeURIComponent(derivative)}`);
+      const data = await response.json();
+      setRecords(data);
+    } catch (error) {
+      console.error('Failed to fetch derivative records:', error);
+      setRecords([]);
+    } finally {
+      setLoadingRecords(false);
+    }
+  };
+
+  const toggleFamilyExpand = (headword: string) => {
+    const newExpanded = new Set(expandedFamilies);
+    if (newExpanded.has(headword)) {
+      newExpanded.delete(headword);
+    } else {
+      newExpanded.add(headword);
+    }
+    setExpandedFamilies(newExpanded);
+  };
+
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
     setSelectedWord(null);
     setSelectedFamily(null);
+    setSelectedDerivative(null);
     setRecords([]);
+    setSearchQuery('');
   };
+
+  // Filter words based on search query
+  const filteredWordStats = wordStats.filter(stat =>
+    stat.word.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Filter families based on search query (search in headword and derivatives)
+  const filteredFamilyStats = familyStats.filter(stat => {
+    const headwordMatch = stat.headword.toLowerCase().includes(searchQuery.toLowerCase());
+    const derivativeMatch = stat.derivatives.some(d =>
+      d.word.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    return headwordMatch || derivativeMatch;
+  });
 
   return (
     <div className="min-h-screen bg-gray-900 flex">
@@ -181,6 +234,25 @@ export default function WordStats() {
               </div>
             </div>
 
+            {/* Search Bar */}
+            <div className="mb-4">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={viewMode === 'words' ? 'Search words...' : 'Search families...'}
+                className="w-full px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="mt-2 text-xs text-gray-400 hover:text-white"
+                >
+                  Clear search
+                </button>
+              )}
+            </div>
+
             {/* Word/Family List */}
             {loading ? (
               <div className="text-gray-400 text-center py-4">Loading...</div>
@@ -188,48 +260,106 @@ export default function WordStats() {
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold text-gray-300 mb-3">
                   {viewMode === 'words'
-                    ? `Unique Words (${wordStats.length})`
-                    : `Word Families (${familyStats.length})`
+                    ? `Unique Words (${filteredWordStats.length}${searchQuery ? ` of ${wordStats.length}` : ''})`
+                    : `Word Families (${filteredFamilyStats.length}${searchQuery ? ` of ${familyStats.length}` : ''})`
                   }
                 </h3>
-                <div className="space-y-1 max-h-[calc(100vh-400px)] overflow-y-auto">
+                <div className="space-y-1 max-h-[calc(100vh-500px)] overflow-y-auto">
                   {viewMode === 'words' ? (
-                    wordStats.map((stat) => (
-                      <button
-                        key={stat.word}
-                        onClick={() => handleWordClick(stat.word)}
-                        className={`w-full px-3 py-2 rounded-lg text-left flex justify-between items-center transition-colors ${
-                          selectedWord === stat.word
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                        }`}
-                      >
-                        <span className="font-medium truncate">{stat.word}</span>
-                        <span className={`ml-2 font-semibold ${selectedWord === stat.word ? 'text-blue-200' : 'text-blue-400'}`}>
-                          {stat.count}
-                        </span>
-                      </button>
-                    ))
-                  ) : (
-                    familyStats.map((stat) => (
-                      <button
-                        key={stat.word_family}
-                        onClick={() => handleFamilyClick(stat.word_family)}
-                        className={`w-full px-3 py-2 rounded-lg text-left transition-colors ${
-                          selectedFamily === stat.word_family
-                            ? 'bg-green-600 text-white'
-                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                        }`}
-                      >
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium truncate">{stat.headword}</span>
-                          <span className={`ml-2 font-semibold ${selectedFamily === stat.word_family ? 'text-green-200' : 'text-green-400'}`}>
+                    filteredWordStats.length > 0 ? (
+                      filteredWordStats.map((stat) => (
+                        <button
+                          key={stat.word}
+                          onClick={() => handleWordClick(stat.word)}
+                          className={`w-full px-3 py-2 rounded-lg text-left flex justify-between items-center transition-colors ${
+                            selectedWord === stat.word
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          }`}
+                        >
+                          <span className="font-medium truncate">{stat.word}</span>
+                          <span className={`ml-2 font-semibold ${selectedWord === stat.word ? 'text-blue-200' : 'text-blue-400'}`}>
                             {stat.count}
                           </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="text-gray-400 text-center py-4 text-sm">
+                        No words found matching &quot;{searchQuery}&quot;
+                      </div>
+                    )
+                  ) : (
+                    filteredFamilyStats.length > 0 ? (
+                      filteredFamilyStats.map((stat) => {
+                      const isExpanded = expandedFamilies.has(stat.headword);
+                      const isHeadwordSelected = selectedFamily === stat.headword && !selectedDerivative;
+
+                      return (
+                        <div key={stat.headword} className="space-y-1">
+                          {/* Headword Row */}
+                          <div className="flex items-stretch gap-1">
+                            {/* Expand/Collapse Button */}
+                            <button
+                              onClick={() => toggleFamilyExpand(stat.headword)}
+                              className="px-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-gray-300"
+                              title={isExpanded ? "Collapse" : "Expand"}
+                            >
+                              {isExpanded ? '▼' : '▶'}
+                            </button>
+
+                            {/* Headword Button */}
+                            <button
+                              onClick={() => handleFamilyClick(stat.headword)}
+                              className={`flex-1 px-3 py-2 rounded-lg text-left transition-colors ${
+                                isHeadwordSelected
+                                  ? 'bg-green-600 text-white'
+                                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                              }`}
+                            >
+                              <div className="flex justify-between items-center">
+                                <span className="font-bold truncate">{stat.headword}</span>
+                                <span className={`ml-2 font-semibold ${isHeadwordSelected ? 'text-green-200' : 'text-green-400'}`}>
+                                  {stat.totalCount}
+                                </span>
+                              </div>
+                            </button>
+                          </div>
+
+                          {/* Derivatives List (Expandable) */}
+                          {isExpanded && (
+                            <div className="ml-8 space-y-1">
+                              {stat.derivatives.map((derivative) => {
+                                const isDerivativeSelected = selectedFamily === stat.headword && selectedDerivative === derivative.word;
+
+                                return (
+                                  <button
+                                    key={derivative.word}
+                                    onClick={() => handleDerivativeClick(stat.headword, derivative.word)}
+                                    className={`w-full px-3 py-2 rounded-lg text-left transition-colors ${
+                                      isDerivativeSelected
+                                        ? 'bg-green-500 text-white'
+                                        : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                                    }`}
+                                  >
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-sm truncate">{derivative.word}</span>
+                                      <span className={`ml-2 text-sm font-semibold ${isDerivativeSelected ? 'text-green-100' : 'text-green-300'}`}>
+                                        {derivative.count}
+                                      </span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
-                        <div className="text-xs mt-1 truncate opacity-75">{stat.word_family}</div>
-                      </button>
-                    ))
+                      );
+                    })
+                    ) : (
+                      <div className="text-gray-400 text-center py-4 text-sm">
+                        No word families found matching &quot;{searchQuery}&quot;
+                      </div>
+                    )
                   )}
                 </div>
               </div>
@@ -256,7 +386,8 @@ export default function WordStats() {
               <div className="px-6 py-4 bg-gray-700 border-b border-gray-600">
                 <h2 className="text-xl font-bold text-white">
                   {selectedWord && `Records for: ${selectedWord} (${records.length} ${records.length === 1 ? 'record' : 'records'})`}
-                  {selectedFamily && `Records for family: ${familyStats.find(f => f.word_family === selectedFamily)?.headword} (${records.length} ${records.length === 1 ? 'record' : 'records'})`}
+                  {selectedFamily && selectedDerivative && `Records for: ${selectedDerivative} (${records.length} ${records.length === 1 ? 'record' : 'records'})`}
+                  {selectedFamily && !selectedDerivative && `Records for family: ${selectedFamily} - All Derivatives (${records.length} ${records.length === 1 ? 'record' : 'records'})`}
                 </h2>
               </div>
 
