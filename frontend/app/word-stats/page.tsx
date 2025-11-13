@@ -173,16 +173,59 @@ export default function WordStats() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-900 flex">
+    <div className="min-h-screen bg-gray-900 flex flex-col">
+      {/* Top Navigation Bar */}
+      <nav className="bg-gradient-to-r from-gray-800 via-gray-900 to-gray-800 border-b border-gray-700 shadow-lg">
+        <div className="max-w-[1920px] mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            {/* Logo/Title */}
+            <div className="flex items-center gap-4">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent">
+                应试单词表
+              </h1>
+              <div className="h-6 w-px bg-gray-700"></div>
+              <span className="text-sm text-gray-400">Word Statistics</span>
+            </div>
+
+            {/* Navigation Links */}
+            <div className="flex items-center gap-2">
+              <Link
+                href="/"
+                prefetch={true}
+                className="px-4 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-gray-700 transition-all font-medium"
+              >
+                Word Family
+              </Link>
+              <Link
+                href="/word-stats"
+                prefetch={true}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium shadow-lg"
+              >
+                Word Statistics
+              </Link>
+              <Link
+                href="/spot-word"
+                prefetch={true}
+                className="px-4 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-gray-700 transition-all font-medium"
+              >
+                Spot Word
+              </Link>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
-        <div className={`${sidebarCollapsed ? 'w-16' : 'w-80'} bg-gray-800 border-r border-gray-700 p-6 overflow-y-auto`}>
+        <div className={`${sidebarCollapsed ? 'w-16' : 'w-80'} bg-gray-800 border-r border-gray-700 p-6 overflow-y-auto transition-all duration-300`}>
         <div className="flex items-center justify-between mb-6">
           {!sidebarCollapsed && (
-            <h1 className="text-2xl font-bold text-white">应试单词表</h1>
+            <h2 className="text-lg font-semibold text-gray-300">Filters</h2>
           )}
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-gray-400 hover:text-white transition-colors p-1 rounded hover:bg-gray-700"
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {sidebarCollapsed ? '→' : '←'}
@@ -191,21 +234,6 @@ export default function WordStats() {
 
         {!sidebarCollapsed && (
           <>
-            <Link
-              href="/"
-              prefetch={true}
-              className="block w-full mb-4 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium text-center"
-            >
-              ← Word Family
-            </Link>
-
-            <Link
-              href="/spot-word"
-              prefetch={true}
-              className="block w-full mb-4 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium text-center"
-            >
-              Spot Word →
-            </Link>
 
             {/* Toggle Switch */}
             <div className="mb-6 p-4 bg-gray-700 rounded-lg">
@@ -396,9 +424,9 @@ export default function WordStats() {
         )}
       </div>
 
-      {/* Main Content - Table */}
-      <div className="flex-1 p-8 overflow-y-auto">
-        <div className="max-w-[1600px] mx-auto">
+        {/* Main Content - Table */}
+        <div className="flex-1 p-8 overflow-y-auto bg-gray-900">
+          <div className="max-w-[1600px] mx-auto">
           <h1 className="text-3xl font-bold text-white mb-8">Word Statistics</h1>
 
           {!selectedWord && !selectedFamily ? (
@@ -466,6 +494,7 @@ export default function WordStats() {
               )}
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

@@ -142,32 +142,68 @@ export default function SpotWord() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex">
-      {/* Sidebar */}
-      <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-gray-800 border-r border-gray-700 p-6 overflow-y-auto transition-all duration-300 flex-shrink-0`}>
-        <div className="flex items-center justify-between mb-6">
-          {!sidebarCollapsed && (
-            <h1 className="text-2xl font-bold text-white">应试单词表</h1>
-          )}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="text-gray-400 hover:text-white transition-colors"
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {sidebarCollapsed ? '→' : '←'}
-          </button>
-        </div>
+    <div className="min-h-screen bg-gray-900 flex flex-col">
+      {/* Top Navigation Bar */}
+      <nav className="bg-gradient-to-r from-gray-800 via-gray-900 to-gray-800 border-b border-gray-700 shadow-lg">
+        <div className="max-w-[1920px] mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            {/* Logo/Title */}
+            <div className="flex items-center gap-4">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent">
+                应试单词表
+              </h1>
+              <div className="h-6 w-px bg-gray-700"></div>
+              <span className="text-sm text-gray-400">Spot Word</span>
+            </div>
 
-        {!sidebarCollapsed && (
-          <>
-            <Link
-              href="/"
-              prefetch={true}
-              scroll={false}
-              className="block w-full mb-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-center"
+            {/* Navigation Links */}
+            <div className="flex items-center gap-2">
+              <Link
+                href="/"
+                prefetch={true}
+                scroll={false}
+                className="px-4 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-gray-700 transition-all font-medium"
+              >
+                Word Family
+              </Link>
+              <Link
+                href="/word-stats"
+                prefetch={true}
+                className="px-4 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-gray-700 transition-all font-medium"
+              >
+                Word Statistics
+              </Link>
+              <Link
+                href="/spot-word"
+                prefetch={true}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium shadow-lg"
+              >
+                Spot Word
+              </Link>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar */}
+        <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} bg-gray-800 border-r border-gray-700 p-6 overflow-y-auto transition-all duration-300 flex-shrink-0`}>
+          <div className="flex items-center justify-between mb-6">
+            {!sidebarCollapsed && (
+              <h2 className="text-lg font-semibold text-gray-300">History</h2>
+            )}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="text-gray-400 hover:text-white transition-colors p-1 rounded hover:bg-gray-700"
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              ← Word Family
-            </Link>
+              {sidebarCollapsed ? '→' : '←'}
+            </button>
+          </div>
+
+          {!sidebarCollapsed && (
+            <>
 
             {searchHistory.length > 0 && (
               <div>
@@ -210,11 +246,11 @@ export default function SpotWord() {
             )}
           </>
         )}
-      </div>
+        </div>
 
-      {/* Main Content */}
-      <div className="flex-1 p-8 overflow-y-auto">
-        <div className="max-w-4xl mx-auto">
+        {/* Main Content */}
+        <div className="flex-1 p-8 overflow-y-auto bg-gray-900">
+          <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white">Spot Word</h1>
@@ -436,6 +472,7 @@ export default function SpotWord() {
             </div>
           </div>
         )}
+          </div>
         </div>
       </div>
     </div>
