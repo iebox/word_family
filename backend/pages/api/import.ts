@@ -15,7 +15,6 @@ export const config = {
     bodyParser: false,
     responseLimit: false,
   },
-  maxDuration: 300, // 5 minutes for large files
 };
 
 function parseForm(req: NextApiRequest): Promise<{ fields: any; files: any }> {
@@ -316,16 +315,20 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const startTime = Date.now();
+  console.log(`[IMPORT] Starting import at ${new Date().toISOString()}`);
+
   try {
+    console.log('[IMPORT] Parsing form data...');
     const { files } = await parseForm(req);
     const uploadedFile = Array.isArray(files.file) ? files.file[0] : files.file;
 
     if (!uploadedFile) {
-      console.error('No file in request');
+      console.error('[IMPORT] No file in request');
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    console.log('File received:', uploadedFile.originalFilename, 'Size:', uploadedFile.size);
+    console.log(`[IMPORT] File received: ${uploadedFile.originalFilename}, Size: ${uploadedFile.size} bytes (${(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)`);
     const filePath = uploadedFile.filepath;
 
     console.log('Reading Excel file from:', filePath);
