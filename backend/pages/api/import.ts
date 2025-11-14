@@ -13,7 +13,9 @@ interface VocabularyRecord {
 export const config = {
   api: {
     bodyParser: false,
+    responseLimit: false,
   },
+  maxDuration: 300, // 5 minutes for large files
 };
 
 function parseForm(req: NextApiRequest): Promise<{ fields: any; files: any }> {
@@ -28,6 +30,8 @@ function parseForm(req: NextApiRequest): Promise<{ fields: any; files: any }> {
     const form = new IncomingForm({
       uploadDir,
       keepExtensions: true,
+      maxFileSize: 50 * 1024 * 1024, // 50MB
+      maxFieldsSize: 50 * 1024 * 1024, // 50MB
     });
 
     form.parse(req, (err, fields, files) => {
@@ -335,6 +339,11 @@ export default async function handler(
     console.log('First row sample:', data[0]);
 
     const insertedRecords: any[] = [];
+    const BATCH_SIZE = 100; // Process 100 records at a time
+    let processedRows = 0;
+
+    // Prepare all insert values first
+    const valuesToInsert: any[][] = [];
 
     for (const row of data) {
       // Support multiple column names for reference
@@ -346,30 +355,62 @@ export default async function handler(
       }
 
       const words = splitReferenceIntoWords(reference);
-      console.log(`Processing reference "${reference}" -> ${words.length} words`);
 
       for (const word of words) {
-        try {
-          await query(
-            `INSERT INTO word_records
-            (word, reference, unit, section, test_point, collocation, word_family, book, grade, chinese)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              word,
-              reference,
-              row['Unit'] || row['unit'] || null,
-              row['Section'] || row['section'] || null,
-              row['test_point'] || null,
-              row['collocation'] || null,
-              null,
-              row['Book'] || row['book'] || null,
-              row['Grade'] || row['grade'] || null,
-              row['Chinese'] || row['chinese'] || null
-            ]
-          );
+        valuesToInsert.push([
+          word,
+          reference,
+          row['Unit'] || row['unit'] || null,
+          row['Section'] || row['section'] || null,
+          row['test_point'] || null,
+          row['collocation'] || null,
+          null,
+          row['Book'] || row['book'] || null,
+          row['Grade'] || row['grade'] || null,
+          row['Chinese'] || row['chinese'] || null
+        ]);
+      }
+    }
+
+    console.log(`Total values to insert: ${valuesToInsert.length}`);
+
+    // Insert in batches
+    for (let i = 0; i < valuesToInsert.length; i += BATCH_SIZE) {
+      const batch = valuesToInsert.slice(i, i + BATCH_SIZE);
+
+      try {
+        // Build multi-row insert query
+        const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+        const values = batch.flat();
+
+        await query(
+          `INSERT INTO word_records
+          (word, reference, unit, section, test_point, collocation, word_family, book, grade, chinese)
+          VALUES ${placeholders}`,
+          values
+        );
+
+        processedRows += batch.length;
+        console.log(`Inserted batch: ${processedRows}/${valuesToInsert.length}`);
+
+        batch.forEach(([word, reference]) => {
           insertedRecords.push({ word, reference });
-        } catch (error) {
-          console.error('Error inserting record:', error);
+        });
+      } catch (error) {
+        console.error('Error inserting batch:', error);
+        // Try individual inserts for this batch
+        for (const values of batch) {
+          try {
+            await query(
+              `INSERT INTO word_records
+              (word, reference, unit, section, test_point, collocation, word_family, book, grade, chinese)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              values
+            );
+            insertedRecords.push({ word: values[0], reference: values[1] });
+          } catch (individualError) {
+            console.error('Error inserting individual record:', individualError);
+          }
         }
       }
     }
