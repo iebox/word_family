@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
 
 interface WordStat {
   word: string;
@@ -48,6 +49,11 @@ export default function WordStats() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('words');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedGrades, setSelectedGrades] = useState<Set<string>>(new Set());
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(100);
 
   // Load sidebar state from localStorage
   useEffect(() => {
@@ -55,12 +61,28 @@ export default function WordStats() {
     if (savedSidebarState !== null) {
       setSidebarCollapsed(savedSidebarState === 'true');
     }
+
+    // Load pagination settings from localStorage
+    const savedItemsPerPage = localStorage.getItem('statsItemsPerPage');
+    if (savedItemsPerPage) {
+      setItemsPerPage(parseInt(savedItemsPerPage, 10));
+    }
   }, []);
 
   // Save sidebar state
   useEffect(() => {
     localStorage.setItem('sidebarCollapsed', String(sidebarCollapsed));
   }, [sidebarCollapsed]);
+
+  // Save items per page to localStorage
+  useEffect(() => {
+    localStorage.setItem('statsItemsPerPage', String(itemsPerPage));
+  }, [itemsPerPage]);
+
+  // Reset to page 1 when records change or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [records, selectedGrades]);
 
   useEffect(() => {
     fetchStats();
@@ -156,6 +178,7 @@ export default function WordStats() {
     setSelectedDerivative(null);
     setRecords([]);
     setSearchQuery('');
+    setSelectedGrades(new Set());
   };
 
   // Filter words based on search query
@@ -171,6 +194,64 @@ export default function WordStats() {
     );
     return headwordMatch || derivativeMatch;
   });
+
+  // Get unique grades from records
+  const uniqueGrades = Array.from(new Set(records.map(r => r.grade).filter(Boolean))).sort();
+
+  // Filter records by selected grades
+  const filteredRecords = records.filter(record => {
+    if (selectedGrades.size > 0 && !selectedGrades.has(record.grade || '')) return false;
+    return true;
+  });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedRecords = filteredRecords.slice(startIndex, endIndex);
+
+  const handleItemsPerPageChange = (value: number) => {
+    setItemsPerPage(value);
+    setCurrentPage(1);
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const handleExportToExcel = () => {
+    if (filteredRecords.length === 0) {
+      alert('No records to export');
+      return;
+    }
+
+    // Create worksheet data
+    const worksheetData = filteredRecords.map(record => ({
+      'ID': record.id,
+      'Word': record.word,
+      'Chinese': record.chinese || '',
+      'Reference': record.reference,
+      'Unit': record.unit || '',
+      'Section': record.section || '',
+      'Test Point': record.test_point || '',
+      'Collocation': record.collocation || '',
+      'Word Family': record.word_family || '',
+      'Book': record.book || '',
+      'Grade': record.grade || ''
+    }));
+
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Word Records');
+
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const filename = `word-statistics-${selectedWord || selectedFamily || 'all'}-${timestamp}.xlsx`;
+
+    // Save file
+    XLSX.writeFile(workbook, filename);
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
@@ -281,6 +362,42 @@ export default function WordStats() {
               </div>
             </div>
 
+            {/* Grade Filter */}
+            {uniqueGrades.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">Grade Filter</h3>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {uniqueGrades.map((grade) => (
+                    <label key={grade} className="flex items-center cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={selectedGrades.has(grade)}
+                        onChange={(e) => {
+                          const newSet = new Set(selectedGrades);
+                          if (e.target.checked) {
+                            newSet.add(grade);
+                          } else {
+                            newSet.delete(grade);
+                          }
+                          setSelectedGrades(newSet);
+                        }}
+                        className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-gray-300 group-hover:text-white">{grade}</span>
+                    </label>
+                  ))}
+                </div>
+                {selectedGrades.size > 0 && (
+                  <button
+                    onClick={() => setSelectedGrades(new Set())}
+                    className="mt-3 w-full px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-500 transition-colors"
+                  >
+                    Clear Grade Filter
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Search Bar */}
             <div className="mb-4">
               <input
@@ -347,36 +464,45 @@ export default function WordStats() {
                           <div className={`flex items-stretch rounded-lg overflow-hidden transition-all ${
                             isHeadwordSelected ? 'bg-green-600' : 'bg-gray-700 hover:bg-gray-650'
                           }`}>
+                            {/* Expand/Collapse Icon */}
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFamilyExpand(stat.headword);
+                              }}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  toggleFamilyExpand(stat.headword);
+                                }
+                              }}
+                              className={`flex items-center justify-center px-2 cursor-pointer transition-all ${
+                                isHeadwordSelected ? 'hover:bg-green-700' : 'hover:bg-gray-600'
+                              }`}
+                              title={isExpanded ? "Collapse" : "Expand"}
+                            >
+                              <svg
+                                className={`w-3 h-3 transition-transform ${
+                                  isExpanded ? 'rotate-90' : 'rotate-0'
+                                } ${isHeadwordSelected ? 'text-white' : 'text-gray-400'}`}
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+
                             {/* Headword Button */}
                             <button
                               onClick={() => handleFamilyClick(stat.headword)}
                               className="flex-1 px-3 py-2 text-left transition-colors"
                             >
                               <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                  {/* Expand/Collapse Icon */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleFamilyExpand(stat.headword);
-                                    }}
-                                    className={`flex items-center justify-center w-5 h-5 rounded transition-all ${
-                                      isExpanded ? 'rotate-90' : 'rotate-0'
-                                    } ${isHeadwordSelected ? 'hover:bg-green-700' : 'hover:bg-gray-600'}`}
-                                    title={isExpanded ? "Collapse" : "Expand"}
-                                  >
-                                    <svg
-                                      className={`w-3 h-3 transition-transform ${isHeadwordSelected ? 'text-white' : 'text-gray-400'}`}
-                                      fill="currentColor"
-                                      viewBox="0 0 20 20"
-                                    >
-                                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  </button>
-                                  <span className={`font-bold truncate ${isHeadwordSelected ? 'text-white' : 'text-gray-200'}`}>
-                                    {stat.headword}
-                                  </span>
-                                </div>
+                                <span className={`font-bold truncate ${isHeadwordSelected ? 'text-white' : 'text-gray-200'}`}>
+                                  {stat.headword}
+                                </span>
                                 <span className={`ml-2 font-semibold ${isHeadwordSelected ? 'text-green-200' : 'text-green-400'}`}>
                                   {stat.totalCount}
                                 </span>
@@ -456,14 +582,26 @@ export default function WordStats() {
           ) : loadingRecords ? (
             <div className="text-white text-center py-20">Loading records...</div>
           ) : (
-            <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 overflow-hidden">
+            <>
+              <div className="bg-gray-800 rounded-lg shadow-lg border border-gray-700 overflow-hidden">
               {/* Table Header */}
-              <div className="px-6 py-4 bg-gray-700 border-b border-gray-600">
+              <div className="px-6 py-4 bg-gray-700 border-b border-gray-600 flex justify-between items-center">
                 <h2 className="text-xl font-bold text-white">
-                  {selectedWord && `Records for: ${selectedWord} (${records.length} ${records.length === 1 ? 'record' : 'records'})`}
-                  {selectedFamily && selectedDerivative && `Records for: ${selectedDerivative} (${records.length} ${records.length === 1 ? 'record' : 'records'})`}
-                  {selectedFamily && !selectedDerivative && `Records for family: ${selectedFamily} - All Derivatives (${records.length} ${records.length === 1 ? 'record' : 'records'})`}
+                  {selectedWord && `Records for: ${selectedWord} (${filteredRecords.length} ${filteredRecords.length === 1 ? 'record' : 'records'})`}
+                  {selectedFamily && selectedDerivative && `Records for: ${selectedDerivative} (${filteredRecords.length} ${filteredRecords.length === 1 ? 'record' : 'records'})`}
+                  {selectedFamily && !selectedDerivative && `Records for family: ${selectedFamily} - All Derivatives (${filteredRecords.length} ${filteredRecords.length === 1 ? 'record' : 'records'})`}
                 </h2>
+                <button
+                  onClick={handleExportToExcel}
+                  disabled={filteredRecords.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
+                  title="Export to Excel"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Export to Excel
+                </button>
               </div>
 
               {/* Table */}
@@ -485,7 +623,7 @@ export default function WordStats() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
-                    {records.map((record) => (
+                    {paginatedRecords.map((record) => (
                       <tr key={record.id} className="hover:bg-gray-700 transition-colors">
                         <td className="px-4 py-3 text-gray-400 text-sm whitespace-nowrap">{record.id}</td>
                         <td className="px-4 py-3 text-white font-medium whitespace-nowrap">{record.word}</td>
@@ -509,7 +647,104 @@ export default function WordStats() {
                   No records found
                 </div>
               )}
-            </div>
+              </div>
+
+              {/* Pagination Controls */}
+              {records.length > 0 && (
+                <div className="bg-gray-800 rounded-lg shadow-lg p-4 mt-6 border border-gray-700">
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    {/* Items per page selector */}
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm text-gray-300">Items per page:</label>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                        className="px-3 py-1.5 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                        <option value={200}>200</option>
+                        <option value={500}>500</option>
+                        <option value={1000}>1000</option>
+                      </select>
+                    </div>
+
+                    {/* Page info */}
+                    <div className="text-sm text-gray-300">
+                      Showing {startIndex + 1}-{Math.min(endIndex, filteredRecords.length)} of {filteredRecords.length} records
+                      {selectedGrades.size > 0 && ` (filtered from ${records.length})`}
+                    </div>
+
+                    {/* Page navigation */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => goToPage(1)}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
+                        title="First page"
+                      >
+                        ««
+                      </button>
+                      <button
+                        onClick={() => goToPage(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
+                        title="Previous page"
+                      >
+                        «
+                      </button>
+
+                      {/* Page numbers */}
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => goToPage(pageNum)}
+                              className={`px-3 py-1.5 rounded-lg transition-colors ${
+                                currentPage === pageNum
+                                  ? 'bg-blue-600 text-white font-semibold'
+                                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        onClick={() => goToPage(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
+                        title="Next page"
+                      >
+                        »
+                      </button>
+                      <button
+                        onClick={() => goToPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
+                        title="Last page"
+                      >
+                        »»
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
           </div>
         </div>

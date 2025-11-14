@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
 
 interface WordRecord {
   id: number;
@@ -62,6 +63,10 @@ export default function Home() {
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(100);
+
   // Define default column order with chinese next to word
   const defaultColumnOrder = ['id', 'word', 'chinese', 'reference', 'unit', 'section', 'test_point', 'collocation', 'word_family', 'book', 'grade'];
   const [columnOrder, setColumnOrder] = useState<string[]>(defaultColumnOrder);
@@ -83,6 +88,12 @@ export default function Home() {
         console.error('Failed to parse column order:', error);
       }
     }
+
+    // Load pagination settings from localStorage
+    const savedItemsPerPage = localStorage.getItem('itemsPerPage');
+    if (savedItemsPerPage) {
+      setItemsPerPage(parseInt(savedItemsPerPage, 10));
+    }
   }, []);
 
   // Save sidebar state to localStorage whenever it changes
@@ -94,6 +105,16 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem('columnOrder', JSON.stringify(columnOrder));
   }, [columnOrder]);
+
+  // Save items per page to localStorage
+  useEffect(() => {
+    localStorage.setItem('itemsPerPage', String(itemsPerPage));
+  }, [itemsPerPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedGrades, selectedUnits, selectedSections, selectedTestPoints, selectedCollocations, selectedBooks]);
 
   useEffect(() => {
     // Try to load from sessionStorage first for instant display
@@ -304,10 +325,14 @@ export default function Home() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      const allIds = new Set(filteredRecords.map(record => record.id));
-      setSelectedIds(allIds);
+      // Select all on current page
+      const pageIds = new Set([...selectedIds, ...paginatedRecords.map(record => record.id)]);
+      setSelectedIds(pageIds);
     } else {
-      setSelectedIds(new Set());
+      // Deselect all on current page
+      const pageIdsSet = new Set(paginatedRecords.map(record => record.id));
+      const newSelected = new Set([...selectedIds].filter(id => !pageIdsSet.has(id)));
+      setSelectedIds(newSelected);
     }
   };
 
@@ -361,6 +386,37 @@ export default function Home() {
 
   const handleFieldChange = (field: keyof WordRecord, value: string) => {
     setEditedData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Wildcard search matcher
+  const matchesWildcardSearch = (text: string, searchPattern: string): boolean => {
+    if (!searchPattern) return true;
+
+    const lowerText = text.toLowerCase();
+    const lowerPattern = searchPattern.toLowerCase();
+
+    // Check if pattern contains wildcards
+    const startsWithWildcard = lowerPattern.startsWith('%');
+    const endsWithWildcard = lowerPattern.endsWith('%');
+
+    if (startsWithWildcard && endsWithWildcard) {
+      // %eat% -> contains "eat" anywhere (partial match)
+      const searchTerm = lowerPattern.slice(1, -1);
+      return lowerText.includes(searchTerm);
+    } else if (startsWithWildcard) {
+      // %eat -> ends with "eat"
+      const searchTerm = lowerPattern.slice(1);
+      return lowerText.endsWith(searchTerm);
+    } else if (endsWithWildcard) {
+      // eat% -> starts with "eat"
+      const searchTerm = lowerPattern.slice(0, -1);
+      return lowerText.startsWith(searchTerm);
+    } else {
+      // eat -> exact whole word match only
+      // Use word boundary regex to match whole words
+      const regex = new RegExp(`\\b${lowerPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+      return regex.test(lowerText);
+    }
   };
 
   const handleDragStart = (e: React.DragEvent, column: string) => {
@@ -649,18 +705,19 @@ export default function Home() {
       if (selectedCollocations.size > 0 && !selectedCollocations.has(record.collocation || '')) return false;
       if (selectedBooks.size > 0 && !selectedBooks.has(record.book || '')) return false;
 
-      // Search filter
+      // Search filter with wildcard support
       if (!searchTerm) return true;
 
       if (filterColumn === 'all') {
         return Object.values(record).some(value =>
-          String(value).toLowerCase().includes(searchTerm.toLowerCase())
+          matchesWildcardSearch(String(value), searchTerm)
         );
       }
 
-      return String(record[filterColumn as keyof WordRecord] || '')
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
+      return matchesWildcardSearch(
+        String(record[filterColumn as keyof WordRecord] || ''),
+        searchTerm
+      );
     })
     .sort((a, b) => {
       if (!sortColumn || !sortDirection) return 0;
@@ -675,6 +732,55 @@ export default function Home() {
 
       return sortDirection === 'asc' ? comparison : -comparison;
     });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedRecords = filteredRecords.slice(startIndex, endIndex);
+
+  const handleItemsPerPageChange = (value: number) => {
+    setItemsPerPage(value);
+    setCurrentPage(1);
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const handleExportToExcel = () => {
+    if (filteredRecords.length === 0) {
+      alert('No records to export');
+      return;
+    }
+
+    // Create worksheet data
+    const worksheetData = filteredRecords.map(record => ({
+      'ID': record.id,
+      'Word': record.word,
+      'Chinese': record.chinese || '',
+      'Reference': record.reference,
+      'Unit': record.unit || '',
+      'Section': record.section || '',
+      'Test Point': record.test_point || '',
+      'Collocation': record.collocation || '',
+      'Word Family': record.word_family || '',
+      'Book': record.book || '',
+      'Grade': record.grade || ''
+    }));
+
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Word Records');
+
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const filename = `word-family-records-${timestamp}.xlsx`;
+
+    // Save file
+    XLSX.writeFile(workbook, filename);
+  };
 
   if (loading) {
     return (
@@ -1094,11 +1200,14 @@ export default function Home() {
                 <label className="block text-sm font-medium mb-2 text-gray-300">Search</label>
                 <input
                   type="text"
-                  placeholder="Search..."
+                  placeholder="Search... (use % for wildcards)"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <p className="mt-1 text-xs text-gray-400">
+                  Examples: <span className="text-blue-400">eat</span> (exact word) • <span className="text-blue-400">eat%</span> (starts with) • <span className="text-blue-400">%eat</span> (ends with) • <span className="text-blue-400">%eat%</span> (contains anywhere)
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-300">Filter Column</label>
@@ -1120,23 +1229,38 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Bulk Actions Bar */}
-        {selectedIds.size > 0 && (
-          <div className="bg-gray-800 rounded-lg shadow-lg p-4 mb-6 border border-gray-700">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-300">
-                {selectedIds.size} record(s) selected
-              </span>
-              <button
-                onClick={handleBulkDeleteClick}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
-              >
-                <span>🗑️</span>
-                Delete Selected
-              </button>
+        {/* Bulk Actions and Export Bar */}
+        <div className="bg-gray-800 rounded-lg shadow-lg p-4 mb-6 border border-gray-700">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {selectedIds.size > 0 && (
+                <>
+                  <span className="text-gray-300">
+                    {selectedIds.size} record(s) selected
+                  </span>
+                  <button
+                    onClick={handleBulkDeleteClick}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
+                  >
+                    <span>🗑️</span>
+                    Delete Selected
+                  </button>
+                </>
+              )}
             </div>
+            <button
+              onClick={handleExportToExcel}
+              disabled={filteredRecords.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
+              title="Export filtered records to Excel"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Export to Excel ({filteredRecords.length})
+            </button>
           </div>
-        )}
+        </div>
 
         <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-700">
           <div className="overflow-x-auto">
@@ -1146,7 +1270,7 @@ export default function Home() {
                   <th className="px-4 py-3 text-left w-12">
                     <input
                       type="checkbox"
-                      checked={selectedIds.size === filteredRecords.length && filteredRecords.length > 0}
+                      checked={paginatedRecords.length > 0 && paginatedRecords.every(record => selectedIds.has(record.id))}
                       onChange={(e) => handleSelectAll(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
                     />
@@ -1217,14 +1341,14 @@ export default function Home() {
                 </tr>
               </thead>
               <tbody>
-                {filteredRecords.length === 0 ? (
+                {paginatedRecords.length === 0 ? (
                   <tr>
                     <td colSpan={columnOrder.length + 2} className="px-4 py-8 text-center text-gray-400">
-                      No records found. Upload an Excel file to get started.
+                      {filteredRecords.length === 0 ? 'No records found. Upload an Excel file to get started.' : 'No records on this page.'}
                     </td>
                   </tr>
                 ) : (
-                  filteredRecords.map((record) => {
+                  paginatedRecords.map((record) => {
                     const isEditing = editingId === record.id;
                     const isSelected = selectedIds.has(record.id);
                     return (
@@ -1292,8 +1416,104 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="mt-4 text-sm text-gray-400">
-          Total records: {filteredRecords.length} / {records.length}
+        {/* Pagination Controls */}
+        {filteredRecords.length > 0 && (
+          <div className="bg-gray-800 rounded-lg shadow-lg p-4 mt-6 border border-gray-700">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              {/* Items per page selector */}
+              <div className="flex items-center gap-3">
+                <label className="text-sm text-gray-300">Items per page:</label>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                  className="px-3 py-1.5 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                  <option value={500}>500</option>
+                  <option value={1000}>1000</option>
+                </select>
+              </div>
+
+              {/* Page info */}
+              <div className="text-sm text-gray-300">
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredRecords.length)} of {filteredRecords.length} records
+              </div>
+
+              {/* Page navigation */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => goToPage(1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
+                  title="First page"
+                >
+                  ««
+                </button>
+                <button
+                  onClick={() => goToPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
+                  title="Previous page"
+                >
+                  «
+                </button>
+
+                {/* Page numbers */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => goToPage(pageNum)}
+                        className={`px-3 py-1.5 rounded-lg transition-colors ${
+                          currentPage === pageNum
+                            ? 'bg-blue-600 text-white font-semibold'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => goToPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
+                  title="Next page"
+                >
+                  »
+                </button>
+                <button
+                  onClick={() => goToPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
+                  title="Last page"
+                >
+                  »»
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 text-sm text-gray-400 flex justify-between items-center">
+          <span>Total records: {filteredRecords.length} / {records.length}</span>
+          <span>Page {currentPage} of {totalPages}</span>
         </div>
         </div>
         </div>
