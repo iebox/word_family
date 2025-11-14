@@ -196,7 +196,7 @@ export default function WordStats() {
   });
 
   // Get unique grades from records
-  const uniqueGrades = Array.from(new Set(records.map(r => r.grade).filter(Boolean))).sort();
+  const uniqueGrades = Array.from(new Set(records.map(r => r.grade).filter((v): v is string => Boolean(v)))).sort();
 
   // Filter records by selected grades
   const filteredRecords = records.filter(record => {

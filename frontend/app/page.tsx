@@ -690,12 +690,12 @@ export default function Home() {
   };
 
   // Get unique values for all filter types
-  const uniqueGrades = Array.from(new Set(records.map(r => r.grade).filter(Boolean))).sort();
-  const uniqueUnits = Array.from(new Set(records.map(r => r.unit).filter(Boolean))).sort();
-  const uniqueSections = Array.from(new Set(records.map(r => r.section).filter(Boolean))).sort();
-  const uniqueTestPoints = Array.from(new Set(records.map(r => r.test_point).filter(Boolean))).sort();
-  const uniqueCollocations = Array.from(new Set(records.map(r => r.collocation).filter(Boolean))).sort();
-  const uniqueBooks = Array.from(new Set(records.map(r => r.book).filter(Boolean))).sort();
+  const uniqueGrades = Array.from(new Set(records.map(r => r.grade).filter((v): v is string => Boolean(v)))).sort();
+  const uniqueUnits = Array.from(new Set(records.map(r => r.unit).filter((v): v is string => Boolean(v)))).sort();
+  const uniqueSections = Array.from(new Set(records.map(r => r.section).filter((v): v is string => Boolean(v)))).sort();
+  const uniqueTestPoints = Array.from(new Set(records.map(r => r.test_point).filter((v): v is string => Boolean(v)))).sort();
+  const uniqueCollocations = Array.from(new Set(records.map(r => r.collocation).filter((v): v is string => Boolean(v)))).sort();
+  const uniqueBooks = Array.from(new Set(records.map(r => r.book).filter((v): v is string => Boolean(v)))).sort();
 
   const filteredRecords = records
     .filter(record => {
