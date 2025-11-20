@@ -50,6 +50,7 @@ export default function WordStats() {
   const [viewMode, setViewMode] = useState<ViewMode>('words');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGrades, setSelectedGrades] = useState<Set<string>>(new Set());
+  const [selectedUnits, setSelectedUnits] = useState<Set<string>>(new Set());
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -82,7 +83,7 @@ export default function WordStats() {
   // Reset to page 1 when records change or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [records, selectedGrades]);
+  }, [records, selectedGrades, selectedUnits]);
 
   useEffect(() => {
     fetchStats();
@@ -179,6 +180,7 @@ export default function WordStats() {
     setRecords([]);
     setSearchQuery('');
     setSelectedGrades(new Set());
+    setSelectedUnits(new Set());
   };
 
   // Filter words based on search query
@@ -195,12 +197,14 @@ export default function WordStats() {
     return headwordMatch || derivativeMatch;
   });
 
-  // Get unique grades from records
+  // Get unique grades and units from records
   const uniqueGrades = Array.from(new Set(records.map(r => r.grade).filter((v): v is string => Boolean(v)))).sort();
+  const uniqueUnits = Array.from(new Set(records.map(r => r.unit).filter((v): v is string => Boolean(v)))).sort();
 
-  // Filter records by selected grades
+  // Filter records by selected grades and units
   const filteredRecords = records.filter(record => {
     if (selectedGrades.size > 0 && !selectedGrades.has(record.grade || '')) return false;
+    if (selectedUnits.size > 0 && !selectedUnits.has(record.unit || '')) return false;
     return true;
   });
 
@@ -365,7 +369,7 @@ export default function WordStats() {
             {/* Grade Filter */}
             {uniqueGrades.length > 0 && (
               <div className="mb-6">
-                <h3 className="text-sm font-semibold text-gray-300 mb-3">Grade Filter</h3>
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">Grade</h3>
                 <div className="space-y-2 max-h-40 overflow-y-auto">
                   {uniqueGrades.map((grade) => (
                     <label key={grade} className="flex items-center cursor-pointer group">
@@ -393,6 +397,42 @@ export default function WordStats() {
                     className="mt-3 w-full px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-500 transition-colors"
                   >
                     Clear Grade Filter
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Unit Filter */}
+            {uniqueUnits.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">Unit</h3>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {uniqueUnits.map((unit) => (
+                    <label key={unit} className="flex items-center cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={selectedUnits.has(unit)}
+                        onChange={(e) => {
+                          const newSet = new Set(selectedUnits);
+                          if (e.target.checked) {
+                            newSet.add(unit);
+                          } else {
+                            newSet.delete(unit);
+                          }
+                          setSelectedUnits(newSet);
+                        }}
+                        className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-gray-300 group-hover:text-white">{unit}</span>
+                    </label>
+                  ))}
+                </div>
+                {selectedUnits.size > 0 && (
+                  <button
+                    onClick={() => setSelectedUnits(new Set())}
+                    className="mt-3 w-full px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-500 transition-colors"
+                  >
+                    Clear Unit Filter
                   </button>
                 )}
               </div>
@@ -672,7 +712,7 @@ export default function WordStats() {
                     {/* Page info */}
                     <div className="text-sm text-gray-300">
                       Showing {startIndex + 1}-{Math.min(endIndex, filteredRecords.length)} of {filteredRecords.length} records
-                      {selectedGrades.size > 0 && ` (filtered from ${records.length})`}
+                      {(selectedGrades.size > 0 || selectedUnits.size > 0) && ` (filtered from ${records.length})`}
                     </div>
 
                     {/* Page navigation */}
