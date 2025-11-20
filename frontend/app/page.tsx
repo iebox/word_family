@@ -70,6 +70,8 @@ export default function Home() {
   // Define default column order with chinese next to word
   const defaultColumnOrder = ['id', 'word', 'chinese', 'reference', 'unit', 'section', 'test_point', 'collocation', 'word_family', 'book', 'grade'];
   const [columnOrder, setColumnOrder] = useState<string[]>(defaultColumnOrder);
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  const [showColumnMenu, setShowColumnMenu] = useState(false);
 
   // Load sidebar state from localStorage on mount
   useEffect(() => {
@@ -94,6 +96,17 @@ export default function Home() {
     if (savedItemsPerPage) {
       setItemsPerPage(parseInt(savedItemsPerPage, 10));
     }
+
+    // Load hidden columns from localStorage
+    const savedHiddenColumns = localStorage.getItem('hiddenColumns');
+    if (savedHiddenColumns) {
+      try {
+        const parsed = JSON.parse(savedHiddenColumns);
+        setHiddenColumns(new Set(parsed));
+      } catch (error) {
+        console.error('Failed to parse hidden columns:', error);
+      }
+    }
   }, []);
 
   // Save sidebar state to localStorage whenever it changes
@@ -110,6 +123,11 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem('itemsPerPage', String(itemsPerPage));
   }, [itemsPerPage]);
+
+  // Save hidden columns to localStorage
+  useEffect(() => {
+    localStorage.setItem('hiddenColumns', JSON.stringify(Array.from(hiddenColumns)));
+  }, [hiddenColumns]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -1258,17 +1276,86 @@ export default function Home() {
                 </>
               )}
             </div>
-            <button
-              onClick={handleExportToExcel}
-              disabled={filteredRecords.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
-              title="Export filtered records to Excel"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Export to Excel ({filteredRecords.length})
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Column Visibility Menu */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowColumnMenu(!showColumnMenu)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium"
+                  title="Show/Hide Columns"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                  </svg>
+                  Columns
+                </button>
+
+                {showColumnMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowColumnMenu(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-56 bg-gray-700 rounded-lg shadow-xl border border-gray-600 z-20 max-h-96 overflow-y-auto">
+                      <div className="p-3 border-b border-gray-600">
+                        <h3 className="text-sm font-semibold text-gray-200">Show/Hide Columns</h3>
+                      </div>
+                      <div className="p-2 space-y-1">
+                        {columnOrder.map((column) => {
+                          const config = columnConfig[column];
+                          if (!config) return null;
+
+                          return (
+                            <label
+                              key={column}
+                              className="flex items-center px-3 py-2 hover:bg-gray-600 rounded cursor-pointer group"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={!hiddenColumns.has(column)}
+                                onChange={(e) => {
+                                  const newHidden = new Set(hiddenColumns);
+                                  if (e.target.checked) {
+                                    newHidden.delete(column);
+                                  } else {
+                                    newHidden.add(column);
+                                  }
+                                  setHiddenColumns(newHidden);
+                                }}
+                                className="w-4 h-4 text-blue-600 bg-gray-600 border-gray-500 rounded focus:ring-2 focus:ring-blue-500"
+                              />
+                              <span className="ml-3 text-sm text-gray-200 group-hover:text-white">
+                                {config.label}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <div className="p-2 border-t border-gray-600">
+                        <button
+                          onClick={() => setHiddenColumns(new Set())}
+                          className="w-full px-3 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-500 transition-colors"
+                        >
+                          Show All Columns
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <button
+                onClick={handleExportToExcel}
+                disabled={filteredRecords.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
+                title="Export filtered records to Excel"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export to Excel ({filteredRecords.length})
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1287,6 +1374,10 @@ export default function Home() {
                   </th>
                   {columnOrder.map((columnKey, index) => {
                     const config = columnConfig[columnKey];
+
+                    // Skip hidden columns
+                    if (hiddenColumns.has(columnKey)) return null;
+
                     const isDragging = draggedColumn === columnKey;
                     const isDropTarget = dragOverColumn === columnKey;
                     const draggedIndex = draggedColumn ? columnOrder.indexOf(draggedColumn) : -1;
@@ -1353,7 +1444,7 @@ export default function Home() {
               <tbody>
                 {paginatedRecords.length === 0 ? (
                   <tr>
-                    <td colSpan={columnOrder.length + 2} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={columnOrder.filter(col => !hiddenColumns.has(col)).length + 2} className="px-4 py-8 text-center text-gray-400">
                       {filteredRecords.length === 0 ? 'No records found. Upload an Excel file to get started.' : 'No records on this page.'}
                     </td>
                   </tr>
@@ -1373,6 +1464,10 @@ export default function Home() {
                         </td>
                         {columnOrder.map((columnKey) => {
                           const config = columnConfig[columnKey];
+
+                          // Skip hidden columns
+                          if (hiddenColumns.has(columnKey)) return null;
+
                           return (
                             <td
                               key={columnKey}

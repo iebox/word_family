@@ -51,6 +51,8 @@ export default function WordStats() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGrades, setSelectedGrades] = useState<Set<string>>(new Set());
   const [selectedUnits, setSelectedUnits] = useState<Set<string>>(new Set());
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  const [showColumnMenu, setShowColumnMenu] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -68,6 +70,17 @@ export default function WordStats() {
     if (savedItemsPerPage) {
       setItemsPerPage(parseInt(savedItemsPerPage, 10));
     }
+
+    // Load hidden columns from localStorage
+    const savedHiddenColumns = localStorage.getItem('statsHiddenColumns');
+    if (savedHiddenColumns) {
+      try {
+        const parsed = JSON.parse(savedHiddenColumns);
+        setHiddenColumns(new Set(parsed));
+      } catch (error) {
+        console.error('Failed to parse hidden columns:', error);
+      }
+    }
   }, []);
 
   // Save sidebar state
@@ -79,6 +92,11 @@ export default function WordStats() {
   useEffect(() => {
     localStorage.setItem('statsItemsPerPage', String(itemsPerPage));
   }, [itemsPerPage]);
+
+  // Save hidden columns to localStorage
+  useEffect(() => {
+    localStorage.setItem('statsHiddenColumns', JSON.stringify(Array.from(hiddenColumns)));
+  }, [hiddenColumns]);
 
   // Reset to page 1 when records change or filters change
   useEffect(() => {
@@ -631,17 +649,97 @@ export default function WordStats() {
                   {selectedFamily && selectedDerivative && `Records for: ${selectedDerivative} (${filteredRecords.length} ${filteredRecords.length === 1 ? 'record' : 'records'})`}
                   {selectedFamily && !selectedDerivative && `Records for family: ${selectedFamily} - All Derivatives (${filteredRecords.length} ${filteredRecords.length === 1 ? 'record' : 'records'})`}
                 </h2>
-                <button
-                  onClick={handleExportToExcel}
-                  disabled={filteredRecords.length === 0}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
-                  title="Export to Excel"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Export to Excel
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Column Visibility Menu */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowColumnMenu(!showColumnMenu)}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors font-medium"
+                      title="Show/Hide Columns"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                      </svg>
+                      Columns
+                    </button>
+
+                    {showColumnMenu && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={() => setShowColumnMenu(false)}
+                        />
+                        <div className="absolute right-0 mt-2 w-56 bg-gray-700 rounded-lg shadow-xl border border-gray-600 z-20 max-h-96 overflow-y-auto">
+                          <div className="p-3 border-b border-gray-600">
+                            <h3 className="text-sm font-semibold text-gray-200">Show/Hide Columns</h3>
+                          </div>
+                          <div className="p-2 space-y-1">
+                            {['id', 'word', 'chinese', 'reference', 'unit', 'section', 'test_point', 'collocation', 'word_family', 'book', 'grade'].map((column) => {
+                              const labels: Record<string, string> = {
+                                id: 'ID',
+                                word: 'Word',
+                                chinese: 'Chinese',
+                                reference: 'Reference',
+                                unit: 'Unit',
+                                section: 'Section',
+                                test_point: 'Test Point',
+                                collocation: 'Collocation',
+                                word_family: 'Word Family',
+                                book: 'Book',
+                                grade: 'Grade'
+                              };
+
+                              return (
+                                <label
+                                  key={column}
+                                  className="flex items-center px-3 py-2 hover:bg-gray-600 rounded cursor-pointer group"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={!hiddenColumns.has(column)}
+                                    onChange={(e) => {
+                                      const newHidden = new Set(hiddenColumns);
+                                      if (e.target.checked) {
+                                        newHidden.delete(column);
+                                      } else {
+                                        newHidden.add(column);
+                                      }
+                                      setHiddenColumns(newHidden);
+                                    }}
+                                    className="w-4 h-4 text-blue-600 bg-gray-600 border-gray-500 rounded focus:ring-2 focus:ring-blue-500"
+                                  />
+                                  <span className="ml-3 text-sm text-gray-200 group-hover:text-white">
+                                    {labels[column]}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                          <div className="p-2 border-t border-gray-600">
+                            <button
+                              onClick={() => setHiddenColumns(new Set())}
+                              className="w-full px-3 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-500 transition-colors"
+                            >
+                              Show All Columns
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={handleExportToExcel}
+                    disabled={filteredRecords.length === 0}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors font-medium"
+                    title="Export to Excel"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export to Excel
+                  </button>
+                </div>
               </div>
 
               {/* Table */}
@@ -649,33 +747,33 @@ export default function WordStats() {
                 <table className="w-full">
                   <thead className="bg-gray-700 sticky top-0">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">ID</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Word</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Chinese</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Reference</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Unit</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Section</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Test Point</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Collocation</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Word Family</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Book</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Grade</th>
+                      {!hiddenColumns.has('id') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">ID</th>}
+                      {!hiddenColumns.has('word') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Word</th>}
+                      {!hiddenColumns.has('chinese') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Chinese</th>}
+                      {!hiddenColumns.has('reference') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Reference</th>}
+                      {!hiddenColumns.has('unit') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Unit</th>}
+                      {!hiddenColumns.has('section') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Section</th>}
+                      {!hiddenColumns.has('test_point') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Test Point</th>}
+                      {!hiddenColumns.has('collocation') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Collocation</th>}
+                      {!hiddenColumns.has('word_family') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Word Family</th>}
+                      {!hiddenColumns.has('book') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Book</th>}
+                      {!hiddenColumns.has('grade') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-300 uppercase whitespace-nowrap">Grade</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
                     {paginatedRecords.map((record) => (
                       <tr key={record.id} className="hover:bg-gray-700 transition-colors">
-                        <td className="px-4 py-3 text-gray-400 text-sm whitespace-nowrap">{record.id}</td>
-                        <td className="px-4 py-3 text-white font-medium whitespace-nowrap">{record.word}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.chinese || '-'}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.reference}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.unit || '-'}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.section || '-'}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.test_point || '-'}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.collocation || '-'}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.word_family || '-'}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.book || '-'}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.grade || '-'}</td>
+                        {!hiddenColumns.has('id') && <td className="px-4 py-3 text-gray-400 text-sm whitespace-nowrap">{record.id}</td>}
+                        {!hiddenColumns.has('word') && <td className="px-4 py-3 text-white font-medium whitespace-nowrap">{record.word}</td>}
+                        {!hiddenColumns.has('chinese') && <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.chinese || '-'}</td>}
+                        {!hiddenColumns.has('reference') && <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.reference}</td>}
+                        {!hiddenColumns.has('unit') && <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.unit || '-'}</td>}
+                        {!hiddenColumns.has('section') && <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.section || '-'}</td>}
+                        {!hiddenColumns.has('test_point') && <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.test_point || '-'}</td>}
+                        {!hiddenColumns.has('collocation') && <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.collocation || '-'}</td>}
+                        {!hiddenColumns.has('word_family') && <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.word_family || '-'}</td>}
+                        {!hiddenColumns.has('book') && <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.book || '-'}</td>}
+                        {!hiddenColumns.has('grade') && <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{record.grade || '-'}</td>}
                       </tr>
                     ))}
                   </tbody>
