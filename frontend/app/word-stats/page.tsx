@@ -20,6 +20,11 @@ interface FamilyStat {
   derivatives: WordCount[];
 }
 
+interface GradeStat {
+  grade: string;
+  uniqueWords: number;
+}
+
 interface WordRecord {
   id: number;
   word: string;
@@ -39,6 +44,7 @@ type ViewMode = 'words' | 'families';
 export default function WordStats() {
   const [wordStats, setWordStats] = useState<WordStat[]>([]);
   const [familyStats, setFamilyStats] = useState<FamilyStat[]>([]);
+  const [gradeStats, setGradeStats] = useState<GradeStat[]>([]);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [selectedFamily, setSelectedFamily] = useState<string | null>(null);
   const [selectedDerivative, setSelectedDerivative] = useState<string | null>(null);
@@ -110,16 +116,19 @@ export default function WordStats() {
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const [wordsRes, familiesRes] = await Promise.all([
+      const [wordsRes, familiesRes, gradesRes] = await Promise.all([
         fetch('/api/stats/words'),
-        fetch('/api/stats/families')
+        fetch('/api/stats/families'),
+        fetch('/api/stats/words-by-grade')
       ]);
 
       const words = await wordsRes.json();
       const families = await familiesRes.json();
+      const grades = await gradesRes.json();
 
       setWordStats(words);
       setFamilyStats(families);
+      setGradeStats(grades);
     } catch (error) {
       console.error('Failed to fetch stats:', error);
     } finally {
@@ -453,6 +462,29 @@ export default function WordStats() {
                     Clear Unit Filter
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* Unique Words by Grade */}
+            {gradeStats.length > 0 && (
+              <div className="mb-6 p-4 bg-gray-700 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">Unique Words by Grade</h3>
+                <div className="space-y-2">
+                  {gradeStats.map((stat) => (
+                    <div key={stat.grade} className="flex justify-between items-center py-1.5 px-3 bg-gray-600 rounded-lg hover:bg-gray-550 transition-colors">
+                      <span className="text-gray-200 font-medium">{stat.grade}</span>
+                      <span className="text-blue-400 font-semibold">{stat.uniqueWords}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 pt-3 border-t border-gray-600">
+                  <div className="flex justify-between items-center py-1.5 px-3 bg-gray-800 rounded-lg">
+                    <span className="text-gray-100 font-bold">Total</span>
+                    <span className="text-green-400 font-bold">
+                      {gradeStats.reduce((sum, stat) => sum + stat.uniqueWords, 0)}
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
 
